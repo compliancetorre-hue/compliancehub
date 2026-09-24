@@ -1,20 +1,244 @@
 // ═══════════════════════════════════════════════════════
 // DUE DILIGENCE 2 — KYC & MÍDIAS NEGATIVAS
 // ═══════════════════════════════════════════════════════
-// HTML e CSS desta página vivem em arquivos próprios
-// (frontend/due-diligence2-view.html e frontend/css/due-diligence2.css) —
-// buscados uma única vez e cacheados em memória. O CSS é carregado direto
-// pelo <link> do index.html; o HTML precisa de fetch() porque é injetado
-// dinamicamente dentro de #content (ver globals.js). Por isso dd2HTML()
-// virou assíncrona — quem a chama precisa dar await.
-let dd2HTMLCache = null;
-async function dd2HTML(){
-  if(dd2HTMLCache) return dd2HTMLCache;
-  const r = await fetch('due-diligence2-view.html');
-  if(!r.ok) throw new Error('Falha ao carregar due-diligence2-view.html: HTTP '+r.status);
-  dd2HTMLCache = await r.text();
-  return dd2HTMLCache;
-}
+
+function dd2HTML(){return `
+<style>
+.dd2-container{max-width:1200px;margin:0 auto;padding:20px}
+.dd2-search{background:var(--primary);border-radius:12px;padding:20px 24px;margin-bottom:20px;color:#fff}
+.dd2-search h2{font-size:1rem;margin-bottom:14px;opacity:.9}
+.dd2-form-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.dd2-form-group{display:flex;flex-direction:column;gap:4px;min-width:140px}
+.dd2-form-group label{font-size:.8rem;opacity:.8;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.dd2-form-group select,.dd2-form-group input{padding:8px 12px;border-radius:6px;border:none;font-size:.9rem;outline:none;color:var(--text)}
+.dd2-form-group input{flex:1;min-width:200px}
+.dd2-scope-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:16px}
+.dd2-scope-item{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer;padding:4px}
+.dd2-scope-item input{cursor:pointer;accent-color:#00c49a}
+.dd2-btn-search{background:#00c49a;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:10px;transition:opacity .2s}
+.dd2-btn-search:hover{opacity:.85}
+.dd2-btn-search:disabled{opacity:.5;cursor:not-allowed}
+.dd2-progress{background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:20px;display:none;border:1px solid #e2e8f0}
+.dd2-prog-track{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin:12px 0}
+.dd2-prog-fill{height:100%;background:linear-gradient(90deg,#00c49a,#3b82f6);border-radius:4px;transition:width .5s ease}
+.dd2-prog-steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.dd2-step{font-size:.75rem;padding:3px 10px;border-radius:12px;background:#e2e8f0;color:#64748b;transition:all .3s}
+.dd2-step.active{background:#3b82f6;color:#fff}
+.dd2-step.done{background:#22c55e;color:#fff}
+.dd2-step.error{background:#ef4444;color:#fff}
+.dd2-report{display:none}
+.dd2-export-bar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:10px;padding:12px 20px;margin-bottom:16px;flex-wrap:wrap;gap:8px;border:1px solid #e2e8f0}
+.dd2-export-meta{font-size:.82rem;color:#64748b}
+.dd2-export-btns{display:flex;gap:8px}
+.dd2-export-btns button{padding:7px 16px;border-radius:6px;border:none;cursor:pointer;font-size:.82rem;font-weight:600;transition:opacity .2s}
+.dd2-export-btns button:hover{opacity:.8}
+.dd2-btn-print{background:#0f2d4a;color:#fff}
+.dd2-btn-pdf{background:#00c49a;color:#fff}
+.dd2-score-section{display:flex;gap:20px;flex-wrap:wrap;align-items:center;background:#fff;border-radius:12px;padding:24px;margin-bottom:16px;border:1px solid #e2e8f0}
+.dd2-gauge-wrap{text-align:center}
+.dd2-gauge-circle{width:120px;height:120px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:2rem;font-weight:800;border:8px solid #e2e8f0}
+.dd2-gauge-circle.low{border-color:#22c55e;color:#22c55e}
+.dd2-gauge-circle.medium{border-color:#f59e0b;color:#f59e0b}
+.dd2-gauge-circle.high{border-color:#ef4444;color:#ef4444}
+.dd2-gauge-label{font-size:.75rem;font-weight:700;margin-top:6px;text-transform:uppercase;letter-spacing:.05em}
+.dd2-pillars{display:flex;gap:12px;flex-wrap:wrap;flex:1}
+.dd2-score-breakdown{flex-basis:100%;display:flex;flex-direction:column;gap:4px;margin-top:4px;padding-top:12px;border-top:1px solid #e2e8f0}
+.dd2-score-breakdown-item{display:flex;justify-content:space-between;gap:10px;font-size:.78rem;color:#334155}
+.dd2-score-breakdown-item b{color:#0f2d4a}
+.dd2-score-breakdown-pts{font-weight:700;flex-shrink:0}
+.dd2-score-critico{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:8px 12px;font-size:.8rem;font-weight:700;margin-bottom:6px}
+.dd2-socio-bloco{border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff;overflow:hidden}
+.dd2-socio-bloco.hit{border-color:#fecaca;background:#fffbfa}
+.dd2-socio-head{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap}
+.dd2-pillar{flex:1;min-width:120px;background:#f0f4f8;border-radius:8px;padding:12px;text-align:center}
+.dd2-pillar-icon{font-size:1.4rem}
+.dd2-pillar-label{font-size:.72rem;color:#64748b;margin:4px 0}
+.dd2-pillar-status{font-size:.8rem;font-weight:700}
+.dd2-pillar-status.ok{color:#22c55e}
+.dd2-pillar-status.warn{color:#f59e0b}
+.dd2-pillar-status.bad{color:#ef4444}
+.dd2-card{background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:16px;border:1px solid #e2e8f0}
+.dd2-card-title{font-size:1rem;font-weight:700;margin-bottom:16px;color:#0f2d4a;display:flex;align-items:center;gap:8px}
+.dd2-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.dd2-field-item label{font-size:.72rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px}
+.dd2-field-item span{font-size:.88rem;font-weight:600;color:#0f2d4a}
+.dd2-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.dd2-table th{background:#0f2d4a;color:#fff;padding:8px 12px;text-align:left;font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.dd2-table td{padding:8px 12px;border-bottom:1px solid #e2e8f0}
+.dd2-table tr:last-child td{border-bottom:none}
+.dd2-table tr:hover td{background:#f0f4f8}
+.dd2-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.dd2-badge.ok{background:#dcfce7;color:#166534}
+.dd2-badge.warn{background:#fef9c3;color:#854d0e}
+.dd2-badge.danger{background:#fee2e2;color:#991b1b}
+.dd2-badge.info{background:#dbeafe;color:#1e40af}
+.dd2-badge.pep{background:#f3e8ff;color:#6b21a8}
+.dd2-badge.ativo{background:#dbeafe;color:#1e40af}
+.dd2-badge.passivo{background:#fee2e2;color:#991b1b}
+.dd2-links-ext{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.dd2-link-ext{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:#f0f4f8;border:1px solid #e2e8f0;color:#0f2d4a;font-size:.78rem;text-decoration:none;transition:background .2s}
+.dd2-link-ext:hover{background:#e2e8f0}
+.dd2-loading{display:flex;align-items:center;justify-content:center;padding:32px;color:#64748b;gap:12px;font-size:.9rem}
+.dd2-timeline{position:relative;padding-left:24px}
+.dd2-timeline::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:2px;background:#e2e8f0}
+.dd2-tl-item{position:relative;margin-bottom:16px;padding-left:16px}
+.dd2-tl-item::before{content:'';position:absolute;left:-8px;top:4px;width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 0 0 2px #e2e8f0}
+.dd2-tl-item.danger::before{background:#ef4444}
+.dd2-tl-item.warn::before{background:#f59e0b}
+.dd2-tl-item.ok::before{background:#22c55e}
+.dd2-tl-date{font-size:.72rem;color:#64748b;font-weight:600}
+.dd2-tl-text{font-size:.85rem;font-weight:600;margin-top:2px}
+.dd2-tl-sub{font-size:.78rem;color:#64748b;margin-top:1px}
+.dd2-checklist{display:flex;flex-direction:column;gap:8px}
+.dd2-chk-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:#f0f4f8;font-size:.85rem}
+.dd2-chk-item.ok{border-left:4px solid #22c55e}
+.dd2-chk-item.warn{border-left:4px solid #f59e0b}
+.dd2-chk-item.bad{border-left:4px solid #ef4444}
+@media(max-width:768px){.dd2-grid-3{grid-template-columns:1fr}.dd2-scope-grid{grid-template-columns:repeat(2,1fr)}.dd2-form-row{flex-direction:column}.dd2-score-section{flex-direction:column}}
+@media print{.dd2-search,.dd2-export-btns{display:none!important}.dd2-card{break-inside:avoid;box-shadow:none}}
+</style>
+<div class="dd2-container">
+  <div class="dd2-search">
+    <h2>&#128269; Investigação Prévia — Due Diligence 2</h2>
+    <div class="dd2-form-row">
+      <div class="dd2-form-group">
+        <label>Tipo</label>
+        <select id="dd2-tipo" onchange="dd2OnTipoChange()">
+          <option value="cnpj">&#127970; CNPJ</option>
+          <option value="cpf">&#128100; CPF</option>
+        </select>
+      </div>
+      <div class="dd2-form-group" style="flex:1;min-width:200px">
+        <label>Documento</label>
+        <input type="text" id="dd2-doc" placeholder="00.000.000/0001-00" maxlength="18" oninput="dd2FormatDoc(this)"/>
+      </div>
+      <div class="dd2-form-group" id="dd2-nome-group" style="flex:1;min-width:200px;display:none">
+        <label>Nome completo (opcional)</label>
+        <input type="text" id="dd2-nome" placeholder="Ex: Maria da Silva Souza"/>
+      </div>
+      <div class="dd2-form-group" style="max-width:180px">
+        <label>Nível</label>
+        <select id="dd2-nivel">
+          <option value="basico">&#129001; Básico</option>
+          <option value="intermediario" selected>&#129000; Intermediário</option>
+          <option value="forense">&#128308; Forense</option>
+        </select>
+      </div>
+    </div>
+    <div class="dd2-scope-grid">
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-cadastral" checked> &#127963; Dados Cadastrais</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-fiscal" checked> &#128188; Situação Fiscal</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-judicial" checked> &#9878; Processos Judiciais</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-sancoes" checked> &#128171; Sanções e Restrições</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-socios" checked> &#128101; Investigação dos Sócios (CNPJ)</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-pep" checked> &#127963; PEP</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-contratos" checked> &#128196; Contratos c/ Governo Federal</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-midia"> &#128240; Mídia Negativa</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-diarios" checked> &#128240; Diários Oficiais (DOU + Municipais)</label>
+      <label class="dd2-scope-item"><input type="checkbox" id="dd2-sc-bolsa" checked> &#128176; Bolsa Família (CPF)</label>
+    </div>
+    <div class="dd2-form-row" style="margin-top:-6px;margin-bottom:16px">
+      <div class="dd2-form-group" style="max-width:160px">
+        <label>Bolsa Família — Período de</label>
+        <input type="month" id="dd2-bolsa-de" value="2025-06"/>
+      </div>
+      <div class="dd2-form-group" style="max-width:160px">
+        <label>Período até</label>
+        <input type="month" id="dd2-bolsa-ate" value="2026-07"/>
+      </div>
+    </div>
+    <button class="dd2-btn-search" onclick="dd2Iniciar()">&#128269; Investigar</button>
+  </div>
+
+  <div class="dd2-progress" id="dd2-progress">
+    <div style="font-weight:600;margin-bottom:8px">Consultando fontes oficiais...</div>
+    <div class="dd2-prog-track"><div class="dd2-prog-fill" id="dd2-prog-fill" style="width:0%"></div></div>
+    <div class="dd2-prog-steps" id="dd2-steps">
+      <span class="dd2-step" id="dd2-step-cadastral">&#127963; Cadastral</span>
+      <span class="dd2-step" id="dd2-step-fiscal">&#128188; Fiscal</span>
+      <span class="dd2-step" id="dd2-step-judicial">&#9878; Judicial</span>
+      <span class="dd2-step" id="dd2-step-sancoes">&#128171; Sanções</span>
+      <span class="dd2-step" id="dd2-step-socios">&#128101; Sócios</span>
+      <span class="dd2-step" id="dd2-step-pep">&#127963; PEP</span>
+      <span class="dd2-step" id="dd2-step-contratos">&#128196; Contratos</span>
+      <span class="dd2-step" id="dd2-step-midia">&#128240; Mídia</span>
+      <span class="dd2-step" id="dd2-step-diarios">&#128240; Diários</span>
+      <span class="dd2-step" id="dd2-step-bolsa">&#128176; Bolsa Família</span>
+      <span class="dd2-step" id="dd2-step-analise">&#128202; Análise</span>
+    </div>
+  </div>
+
+  <div class="dd2-report" id="dd2-report">
+    <div class="dd2-export-bar">
+      <div class="dd2-export-meta" id="dd2-export-meta"></div>
+      <div class="dd2-export-btns">
+        <button class="dd2-btn-print" onclick="window.print()">&#128438; Imprimir</button>
+        <button class="dd2-btn-pdf" onclick="window.print()">&#128229; Exportar PDF</button>
+      </div>
+    </div>
+    <div class="dd2-score-section" id="dd2-score-section">
+      <div class="dd2-gauge-wrap">
+        <div class="dd2-gauge-circle" id="dd2-gauge">--</div>
+        <div class="dd2-gauge-label" id="dd2-gauge-label">Calculando...</div>
+      </div>
+      <div class="dd2-pillars" id="dd2-pillars"></div>
+      <div class="dd2-score-breakdown" id="dd2-score-breakdown"></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-cadastral">
+      <div class="dd2-card-title">&#127963; Dados Cadastrais</div>
+      <div id="dd2-cadastral-content"><div class="dd2-loading">&#9203; Consultando Receita Federal...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-qsa" style="display:none">
+      <div class="dd2-card-title">&#128101; Quadro Societário (QSA)</div>
+      <div id="dd2-qsa-content"></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-socios" style="display:none">
+      <div class="dd2-card-title">&#128373; Investigação dos Sócios</div>
+      <div id="dd2-socios-content"><div class="dd2-loading">&#9203; Investigando cada sócio (PEP, sanções, mídia negativa)...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-fiscal">
+      <div class="dd2-card-title">&#128188; Situação Fiscal</div>
+      <div id="dd2-fiscal-content"><div class="dd2-loading">&#9203; Verificando situação fiscal...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-judicial">
+      <div class="dd2-card-title">&#9878; Processos Judiciais (DJEN — CNJ)</div>
+      <div id="dd2-judicial-content"><div class="dd2-loading">&#9203; Consultando o Diário de Justiça Eletrônico Nacional...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-sancoes">
+      <div class="dd2-card-title">&#128171; Sanções e Restrições (CEIS, CNEP, Leniência, CEPIM, CEAF, TCU, Internacional)</div>
+      <div id="dd2-sancoes-content"><div class="dd2-loading">&#9203; Consultando Portal da Transparência...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-pep">
+      <div class="dd2-card-title">&#127963; Pessoas Expostas Politicamente (PEP)</div>
+      <div id="dd2-pep-content"><div class="dd2-loading">&#9203; Consultando base de PEPs...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-contratos">
+      <div class="dd2-card-title">&#128196; Contratos com o Governo Federal</div>
+      <div id="dd2-contratos-content"><div class="dd2-loading">&#9203; Consultando Portal da Transparência...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-midia" style="display:none">
+      <div class="dd2-card-title">&#128240; Mídia Negativa</div>
+      <div id="dd2-midia-content"><div class="dd2-loading">&#9203; Buscando notícias negativas...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-diarios">
+      <div class="dd2-card-title">&#128240; Diários Oficiais (DOU + Querido Diário)</div>
+      <div id="dd2-diarios-content"><div class="dd2-loading">&#9203; Consultando o DOU e diários oficiais de mais de 350 municípios...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-bolsa" style="display:none">
+      <div class="dd2-card-title">&#128176; Bolsa Família</div>
+      <div id="dd2-bolsa-content"><div class="dd2-loading">&#9203; Consultando Portal da Transparência...</div></div>
+    </div>
+    <div class="dd2-card" id="dd2-sec-timeline">
+      <div class="dd2-card-title">&#128197; Linha do Tempo</div>
+      <div class="dd2-timeline" id="dd2-timeline-content"></div>
+    </div>
+    <div class="dd2-card">
+      <div class="dd2-card-title">&#9989; Checklist de Qualidade</div>
+      <div class="dd2-checklist" id="dd2-checklist-content"></div>
+    </div>
+  </div>
+</div>
+`;}
 
 
 // ═══════════════════════════════════════════════════════
@@ -44,16 +268,6 @@ function dd2PortalUrl(rota, params){
   return `${EDGE_URL}/portal/${rota}?${params}`;
 }
 
-// Chamada genérica ao proxy /portal/:rota da Edge Function (Portal da
-// Transparência) — GET com timeout, erro se HTTP não-OK, resultado sempre
-// normalizado pra array. Vários pontos do arquivo (sanções, sócios, Radar)
-// repetiam essa mesma closure — juntados aqui numa função só.
-function dd2Chamar(rota,params,timeoutMs=12000){
-  return fetch(dd2PortalUrl(rota,params+'&pagina=1'),{headers:dd2PortalHeaders(),signal:AbortSignal.timeout(timeoutMs)})
-    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-    .then(d=>Array.isArray(d)?d:[]);
-}
-
 let dd2JudicialData = [];
 let dd2CadastralData = null;
 let dd2SancoesData = {ceis:[],cnep:[],leniencia:[],cepim:[],ceaf:[],internacional:[]};
@@ -69,26 +283,27 @@ let dd2BolsaData = [];
 // pra dd2RenderScore poder classificar cada comunicação por polo (réu vs
 // autor) sem precisar re-buscar quem foi pesquisado.
 let dd2JudicialNomesAlvo = [];
-// Contexto (nome/documento/tipo/sócios) da última busca judicial — guardado
-// pra permitir carregar as abas "Processos da Empresa"/"dos Sócios" (busca
-// com janela de datas ampla, sob demanda) sem repetir os parâmetros.
-let dd2JudicialCtx = null;
-// Cache da busca "todos os processos" (janela de datas ampla) — feita uma
-// única vez sob demanda (lazy, ao clicar na aba) pra não dobrar o consumo
-// do rate limit do DJEN (20 req/janela) toda vez que a Aba de Comunicações
-// Recentes já roda a busca padrão de 3 dias.
-let dd2TodosProcessosData = null;
-let dd2TodosProcessosCarregando = false;
 // Investigação individual dos sócios (QSA): um item por sócio com os
 // achados de cada base — alimenta o card próprio, o score e o checklist.
 let dd2SociosData = [];
 let dd2SociosFalhou = false;
 
-// Máscara/formatação de CNPJ e CPF vivem em utils.js (soAlfanum, maskCnpj,
-// maskCpf, fmtCnpj) — compartilhadas com due-diligence.js.
 function dd2FormatDoc(input){
   const tipo = document.getElementById('dd2-tipo').value;
-  input.value = tipo==='cnpj' ? maskCnpj(input.value) : maskCpf(input.value);
+  let v = input.value.replace(/\D/g,'');
+  if(tipo==='cnpj'){
+    v=v.substring(0,14);
+    v=v.replace(/(\d{2})(\d)/,'$1.$2');
+    v=v.replace(/(\d{3})(\d)/,'$1.$2');
+    v=v.replace(/(\d{3})(\d)/,'$1/$2');
+    v=v.replace(/(\d{4})(\d)/,'$1-$2');
+  } else {
+    v=v.substring(0,11);
+    v=v.replace(/(\d{3})(\d)/,'$1.$2');
+    v=v.replace(/(\d{3})(\d)/,'$1.$2');
+    v=v.replace(/(\d{3})(\d)/,'$1-$2');
+  }
+  input.value=v;
 }
 
 // Mostra o campo "Nome completo" só para CPF — não existe API pública que
@@ -116,11 +331,8 @@ function dd2SetProgress(pct){
 }
 
 async function dd2Iniciar(){
+  const doc=document.getElementById('dd2-doc').value.replace(/\D/g,'');
   const tipo=document.getElementById('dd2-tipo').value;
-  // CNPJ pode ter letra (ver soAlfanum em utils.js) — CPF continua só dígito.
-  const doc=tipo==='cnpj'
-    ? soAlfanum(document.getElementById('dd2-doc').value)
-    : document.getElementById('dd2-doc').value.replace(/\D/g,'');
   // Só relevante pra CPF — pra CNPJ a razão social já vem da Receita Federal.
   const nomeManual=tipo==='cpf'?(document.getElementById('dd2-nome')?.value||'').trim():'';
   // Pra CPF, libera investigar só com o nome (sem documento) — útil quando
@@ -148,12 +360,14 @@ async function dd2Iniciar(){
   document.getElementById('dd2-report').style.display='none';
   document.getElementById('dd2-sec-midia').style.display=scMid?'block':'none';
   document.getElementById('dd2-sec-bolsa').style.display=scBolsa?'block':'none';
+  // O quadro societário (QSA) só é mostrado por dd2RenderCadastral quando o
+  // CNPJ pesquisado tem sócios — mas nada o escondia de volta, então ao
+  // pesquisar um CPF logo depois de um CNPJ o QSA antigo ficava grudado na
+  // tela. Escondemos aqui no reset pra ele começar limpo em toda pesquisa e
+  // só reaparecer se a pesquisa atual realmente tiver sócios.
+  document.getElementById('dd2-sec-qsa').style.display='none';
   dd2SetProgress(5);
   dd2JudicialData=[];dd2CadastralData=null;dd2SancoesData={ceis:[],cnep:[],leniencia:[],cepim:[],ceaf:[],tcu:[],internacional:[]};dd2PepData=[];dd2PepFalhou=false;dd2MidiaData=[];dd2MidiaFalhou=false;dd2DiariosData=[];dd2BolsaData=[];dd2SociosData=[];dd2SociosFalhou=false;dd2JudicialNomesAlvo=[];dd2ContratosData=[];dd2ContratosFalhou=false;
-  dd2JudicialCtx=null;dd2TodosProcessosData=null;dd2TodosProcessosCarregando=false;
-  if(document.getElementById('dd2-jud-tab-recentes')) dd2AbaJudicial('recentes');
-  const elEmp=document.getElementById('dd2-judicial-empresa-content'), elSoc=document.getElementById('dd2-judicial-socios-content');
-  if(elEmp) elEmp.innerHTML=''; if(elSoc) elSoc.innerHTML='';
   const tasks=[];
 
   // Failsafe: se alguma chamada travar inesperadamente, libera a tela mesmo assim
@@ -223,7 +437,7 @@ async function dd2Iniciar(){
     dd2SetStep('diarios','active');
     diariosPromise=cadastralPromise.then(cad=>{
         const nome=cad?.razao||nomeManual||'';
-        return dd2BuscarDiarios(nome,doc,tipo,cad?.uf).then(res=>({res,nome}));
+        return dd2BuscarDiarios(nome,doc,tipo).then(res=>({res,nome}));
       }).then(({res,nome})=>{
         dd2DiariosData=res.items;
         dd2RenderDiarios(res,tipo==='cpf'&&!nome);
@@ -266,7 +480,7 @@ async function dd2Iniciar(){
         nomeResolvidoPromise.then(nomeResolvido=>{
           if(!nomeResolvido) return;
           dd2SetStep('diarios','active');
-          return dd2BuscarDiarios(nomeResolvido,doc,tipo,dd2CadastralData?.uf).then(res=>{
+          return dd2BuscarDiarios(nomeResolvido,doc,tipo).then(res=>{
             dd2DiariosData=res.items;
             dd2RenderDiarios(res,false);
             dd2SetStep('diarios','done');
@@ -286,7 +500,7 @@ async function dd2Iniciar(){
       // pessoa física — pedidos pro tipo errado nem saem do ar.
       Promise.all([cadastralPromise,nomeResolvidoPromise]).then(([cad,nomeResolvido])=>{
         const nomeParaSancao=cad?.razao||nomeManual||nomeResolvido||'';
-        const chamar=(rota,params)=>dd2Chamar(rota,params,10000);
+        const chamar=(rota,params)=>fetch(dd2PortalUrl(rota,params+'&pagina=1'),{headers:dd2PortalHeaders(),signal:AbortSignal.timeout(10000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});
         // CEIS/CNEP/Leniência/CEPIM/CEAF só existem por número de documento —
         // sem doc (modo só-nome), pedir com codigoSancionado vazio não acha
         // nada e não é "sem sanção", é "não verificado". Só a base
@@ -318,12 +532,10 @@ async function dd2Iniciar(){
     dd2SetStep('sancoes','done');
     document.getElementById('dd2-sancoes-content').innerHTML='<p style="color:#64748b;font-size:.85rem">Consulta de sanções não selecionada.</p>';
   }
-  // ── Investigação individual dos sócios (CNPJ, via QSA) ou empresas
-  // vinculadas ao nome pesquisado (CPF, sem QSA) ──
+  // ── Investigação individual dos sócios (só CNPJ — CPF não tem QSA) ──
   if(scSocios&&tipo==='cnpj'){
     dd2SetStep('socios','active');
     document.getElementById('dd2-sec-socios').style.display='block';
-    document.getElementById('dd2-socios-titulo').innerHTML='&#128373; Investigação dos Sócios';
     document.getElementById('dd2-socios-content').innerHTML='<div class="dd2-loading">&#9203; Investigando cada sócio (PEP, sanções, TCU, mídia negativa)...</div>';
     tasks.push(
       // Espera também o DJEN (quando a consulta judicial está ligada) pra
@@ -337,7 +549,7 @@ async function dd2Iniciar(){
           dd2SetStep('socios','done');
           return;
         }
-        return dd2InvestigarSocios(socios,djenItems,doc).then(res=>{
+        return dd2InvestigarSocios(socios,djenItems).then(res=>{
           dd2SociosData=res;dd2SociosFalhou=false;
           dd2RenderSocios(res);
           dd2SetStep('socios','done');dd2SetProgress(72);
@@ -347,35 +559,9 @@ async function dd2Iniciar(){
         document.getElementById('dd2-socios-content').innerHTML='<p style="color:#ef4444">⚠️ Não foi possível concluir a investigação automática dos sócios — use os links manuais da seção Judicial.</p>';
       })
     );
-  } else if(scSocios&&tipo==='cpf'){
-    // Busca por CPF/nome direto (não via QSA de um CNPJ) — não tem sócios
-    // pra investigar, mas ainda dá pra checar se esse nome aparece como
-    // sócio/administrador em OUTRAS empresas (reaproveita o mesmo card).
-    dd2SetStep('socios','active');
-    document.getElementById('dd2-sec-socios').style.display='block';
-    document.getElementById('dd2-socios-titulo').innerHTML='&#127970; Empresas Vinculadas';
-    document.getElementById('dd2-socios-content').innerHTML='<div class="dd2-loading">&#9203; Buscando empresas vinculadas a este nome...</div>';
-    tasks.push(
-      Promise.all([cadastralPromise,nomeResolvidoPromise]).then(([cad,nomeResolvido])=>{
-        const nomePessoa=nomeManual||nomeResolvido||cad?.razao||'';
-        if(!nomePessoa||nomePessoa.trim().length<3){
-          document.getElementById('dd2-socios-content').innerHTML='<p style="color:#64748b;font-size:.85rem">Nome não identificado — não é possível buscar empresas vinculadas.</p>';
-          dd2SetStep('socios','done');
-          return;
-        }
-        return dd2FetchEmpresasVinculadas(nomePessoa).then(empresas=>{
-          dd2RenderEmpresasPessoa(nomePessoa,empresas);
-          dd2SetStep('socios','done');dd2SetProgress(72);
-        });
-      }).catch(()=>{
-        dd2SetStep('socios','error');
-        dd2RenderEmpresasPessoa(nomeManual||'',null);
-      })
-    );
   } else {
     dd2SetStep('socios','done');
     document.getElementById('dd2-sec-socios').style.display='none';
-    document.getElementById('dd2-socios-titulo').innerHTML='&#128373; Investigação dos Sócios';
   }
   if(scPep){
     dd2SetStep('pep','active');
@@ -456,7 +642,6 @@ async function dd2Iniciar(){
   dd2SetProgress(100);
   const now=new Date();
   document.getElementById('dd2-export-meta').textContent='Relatório gerado em '+now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR')+' — '+doc;
-  dd2UltimaPesquisa={tipo,doc,nome:dd2CadastralData?.razao||nomeManual||(dd2JudicialCtx?.nome)||''};
   } catch(e) {
     console.error('dd2Iniciar erro:', e);
   } finally {
@@ -471,7 +656,11 @@ async function dd2Iniciar(){
 // Busca CNPJ direto nas APIs públicas (mesmo padrão do Due Diligence 1),
 // com fallback entre provedores e normalização unificada dos campos.
 async function dd2BuscarCNPJ(doc){
-  const apis=cnpjApisList(doc);
+  const apis=[
+    {name:'BrasilAPI',url:`https://brasilapi.com.br/api/cnpj/v1/${doc}`},
+    {name:'ReceitaWS',url:`https://www.receitaws.com.br/v1/cnpj/${doc}`},
+    {name:'CNPJ.ws',url:`https://publica.cnpj.ws/cnpj/${doc}`}
+  ];
   let found=null;
   for(const a of apis){ found=await ddTryApi(a.url,a.name,null); if(found) break; }
   if(!found) throw new Error('CNPJ APIs indisponíveis');
@@ -626,10 +815,17 @@ async function dd2ExecutarComRetry(fns){
 
 async function dd2FetchBolsaFamilia(cpf){
   const meses=dd2BolsaMeses();
-  const chamar=(rota,params)=>dd2Chamar(rota,params,10000);
+  const chamar=(rota,params)=>fetch(dd2PortalUrl(rota,params),{headers:dd2PortalHeaders(),signal:AbortSignal.timeout(10000)})
+    .then(async r=>{
+      if(!r.ok){
+        throw new Error('HTTP '+r.status);
+      }
+      return r.json();
+    })
+    .then(d=>Array.isArray(d)?d:[]);
 
   const {nis,falhou:nisFalhou}=await dd2ResolverNis(cpf);
-  const antigasFns=meses.map(anoMes=>()=>chamar('bolsa-familia','codigo='+cpf+'&anoMesReferencia='+anoMes));
+  const antigasFns=meses.map(anoMes=>()=>chamar('bolsa-familia','codigo='+cpf+'&anoMesReferencia='+anoMes+'&pagina=1'));
 
   // Sequencial de propósito: rodar as duas bases em paralelo dobrava a
   // pressão na mesma janela de rate-limit do Portal e derrubava as duas.
@@ -726,6 +922,12 @@ function dd2RenderCadastral(d){
   if(!d){el.innerHTML='<p style="color:#ef4444">Não foi possível obter dados cadastrais (APIs indisponíveis no momento).</p>';return;}
   const sit=d.situacao||'—';
   const sitOk=(sit.toUpperCase().includes('ATIVA')||sit.toUpperCase().includes('REGULAR'));
+  // Os CNAEs secundários já vêm normalizados por ddNorm (o mesmo normalizador
+  // usado pelo DD1) em d.cnaes_sec — antes o DD2 só exibia o principal.
+  const cnaesSec=d.cnaes_sec||[];
+  const cnaesSecHtml=cnaesSec.length
+    ? cnaesSec.map(c=>`<div style="font-size:.82rem;padding:3px 0;border-bottom:1px solid #f1f5f9"><span style="font-family:'DM Mono',monospace;color:#64748b;margin-right:6px">${escapeHtml(c.cod)||'—'}</span>${escapeHtml(c.desc)||'—'}</div>`).join('')
+    : '<span style="color:#94a3b8;font-size:.82rem">Nenhum CNAE secundário</span>';
   el.innerHTML=`<div class="dd2-grid-3">
     <div class="dd2-field-item"><label>Razão Social</label><span>${escapeHtml(d.razao)||'—'}</span></div>
     <div class="dd2-field-item"><label>Situação Cadastral</label><span><span class="dd2-badge ${sitOk?'ok':'danger'}">${escapeHtml(sit)}</span></span></div>
@@ -733,16 +935,13 @@ function dd2RenderCadastral(d){
     <div class="dd2-field-item"><label>Natureza Jurídica</label><span>${escapeHtml(d.natureza)||'—'}</span></div>
     <div class="dd2-field-item"><label>Porte</label><span>${escapeHtml(d.porte)||'—'}</span></div>
     <div class="dd2-field-item"><label>Capital Social</label><span>${escapeHtml(d.capital)||'—'}</span></div>
-    <div class="dd2-field-item"><label>CNAE Principal</label><span>${escapeHtml(d.cnae_pri?.desc)||'—'}</span></div>
+    <div class="dd2-field-item" style="grid-column:1/-1"><label>CNAE Principal</label><span>${d.cnae_pri?.cod?`<span style="font-family:'DM Mono',monospace;color:#64748b;margin-right:6px">${escapeHtml(d.cnae_pri.cod)}</span>`:''}${escapeHtml(d.cnae_pri?.desc)||'—'}</span></div>
+    <div class="dd2-field-item" style="grid-column:1/-1"><label>CNAEs Secundários (${cnaesSec.length})</label><div style="margin-top:3px">${cnaesSecHtml}</div></div>
     <div class="dd2-field-item" style="grid-column:1/-1"><label>Endereço</label><span>${escapeHtml(d.endereco)||'—'}</span></div>
   </div>`;
   if(d.socios?.length){
     document.getElementById('dd2-sec-qsa').style.display='block';
-    document.getElementById('dd2-qsa-content').innerHTML=`<div style="overflow-x:auto"><table class="dd2-table"><thead><tr><th>Nome</th><th>Qualificação</th><th>CNPJ (quando sócio é PJ)</th></tr></thead><tbody>${d.socios.map(s=>{
-      const docLimpo=soAlfanum(s.doc);
-      const cnpjCel=(s.tipoSocio==='PJ'&&docLimpo.length===14)?`<a href="https://cnpjtransparencia.com.br/cnpj/${docLimpo}" target="_blank" style="color:#0f2d4a;font-family:'DM Mono',monospace">${dd2FmtDoc(docLimpo,'cnpj')}</a>`:'—';
-      return `<tr><td>${escapeHtml(s.nome)||'—'}</td><td>${escapeHtml(s.qual)||'—'}</td><td>${cnpjCel}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+    document.getElementById('dd2-qsa-content').innerHTML=`<div style="overflow-x:auto"><table class="dd2-table"><thead><tr><th>Nome</th><th>Qualificação</th></tr></thead><tbody>${d.socios.map(s=>`<tr><td>${escapeHtml(s.nome)||'—'}</td><td>${escapeHtml(s.qual)||'—'}</td></tr>`).join('')}</tbody></table></div>`;
   }
 }
 
@@ -758,7 +957,8 @@ function dd2RenderFiscal(d){
 }
 
 function dd2FmtDoc(docNum,tipo){
-  return tipo==='cnpj' ? fmtCnpj(docNum) : fmtCpf(docNum);
+  if(tipo==='cnpj')return docNum.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+  return docNum.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
 }
 
 const DD2_DJEN_URL='https://comunicaapi.pje.jus.br/api/v1/comunicacao';
@@ -807,145 +1007,6 @@ async function dd2BuscarProcessosDJEN(nome,docNum,tipo,socios){
   });
   const items=[...porId.values()].sort((a,b)=>(b.data_disponibilizacao||'').localeCompare(a.data_disponibilizacao||''));
   return {items,rateLimited,algumaFalhou};
-}
-
-// Data a partir da qual a busca "Todos os Processos" procura — o DJEN só
-// existe desde a Resolução CNJ 455/2022 e a adesão dos tribunais foi
-// gradual (muitos só passaram a publicar ali a partir de 2023-2024), então
-// processos mais antigos podem não aparecer mesmo com a janela ampla.
-const DD2_TODOS_PROCESSOS_DESDE='2023-01-01';
-
-// Mesma lógica de dd2BuscarProcessosDJEN, mas sem se limitar à janela
-// padrão de poucos dias do DJEN (que é o que a aba "Comunicações Recentes"
-// usa) — aqui informamos explicitamente dataDisponibilizacaoInicio/Fim pra
-// trazer o histórico completo (usado nas abas "Processos da Empresa" e
-// "Processos dos Sócios", carregadas sob demanda).
-async function dd2BuscarTodosProcessosDJEN(nome,docNum,tipo,socios){
-  const docFmt=dd2FmtDoc(docNum,tipo);
-  const hoje=new Date().toISOString().split('T')[0];
-  const range={dataDisponibilizacaoInicio:DD2_TODOS_PROCESSOS_DESDE,dataDisponibilizacaoFim:hoje};
-  const buscas=docNum?[{origem:'documento',p:dd2FetchDJEN({texto:docFmt,...range})}]:[];
-  if(nome) buscas.push({origem:'nome',p:dd2FetchDJEN({nomeParte:nome,...range})});
-  (socios||[]).filter(s=>s.nome).slice(0,4).forEach(s=>{
-    buscas.push({origem:'sócio "'+s.nome+'"',p:dd2FetchDJEN({nomeParte:s.nome,...range})});
-  });
-  const resultados=await Promise.allSettled(buscas.map(b=>b.p));
-  let rateLimited=false,algumaFalhou=false;
-  const porId=new Map();
-  resultados.forEach((res,i)=>{
-    if(res.status==='fulfilled'){
-      res.value.forEach(item=>{
-        if(!porId.has(item.id)) porId.set(item.id,{...item,_origem:[buscas[i].origem]});
-        else porId.get(item.id)._origem.push(buscas[i].origem);
-      });
-    } else {
-      algumaFalhou=true;
-      if(String(res.reason?.message).includes('RATE_LIMIT')) rateLimited=true;
-    }
-  });
-  const items=[...porId.values()];
-  return {items,rateLimited,algumaFalhou};
-}
-
-// Agrupa comunicações individuais do DJEN por processo (número do
-// processo) — a busca "Todos os Processos" quer mostrar UM processo por
-// linha (com quantas comunicações ele teve), não uma linha por citação/
-// intimação isolada como a aba de Comunicações Recentes.
-function dd2AgruparPorProcesso(items){
-  const porProc=new Map();
-  items.forEach(item=>{
-    const chave=item.numeroprocessocommascara||item.numero_processo||item.id;
-    if(!porProc.has(chave)){
-      porProc.set(chave,{numero:chave,tribunal:item.siglaTribunal,classe:item.nomeClasse,comunicacoes:[],origens:new Set()});
-    }
-    const g=porProc.get(chave);
-    g.comunicacoes.push(item);
-    (item._origem||[]).forEach(o=>g.origens.add(o));
-  });
-  const grupos=[...porProc.values()].map(g=>{
-    g.comunicacoes.sort((a,b)=>(b.data_disponibilizacao||'').localeCompare(a.data_disponibilizacao||''));
-    g.ultimaData=g.comunicacoes[0]?.data_disponibilizacao||'';
-    g.qtd=g.comunicacoes.length;
-    // Uma origem "documento" ou "nome" (não-sócio) marca o processo como da
-    // própria empresa/pessoa pesquisada — mesmo que um sócio também apareça
-    // nele (ex: sócio citado como testemunha no processo da empresa).
-    g.daEmpresa=[...g.origens].some(o=>o==='documento'||o==='nome');
-    return g;
-  }).sort((a,b)=>b.ultimaData.localeCompare(a.ultimaData));
-  return grupos;
-}
-
-// Tabela de um grupo de processos (empresa OU sócios) — reaproveitada
-// pelas duas abas novas. Cada linha expande mostrando as comunicações
-// individuais daquele processo (data, tipo, teor).
-function dd2TabelaProcessosAgrupados(grupos,prefixoId){
-  if(!grupos.length) return '<p style="color:#22c55e;font-weight:600">✅ Nenhum processo encontrado nesta busca.</p>';
-  return `<div style="overflow-x:auto"><table class="dd2-table"><thead><tr><th></th><th>Tribunal</th><th>Classe</th><th>Processo</th><th>Comunicações</th><th>Última atualização</th><th>Encontrado por</th></tr></thead>
-  <tbody>${grupos.map((g,i)=>{
-    const idRow=prefixoId+'-'+i;
-    const origensTxt=[...g.origens].map(o=>escapeHtml(o)).join(', ');
-    const detalhes=g.comunicacoes.map(p=>{
-      const resumo=(p.texto||'').trim();
-      return `<div style="padding:8px 0;border-bottom:1px solid #e2e8f0">
-        <div style="font-size:.78rem;color:#64748b"><b>${escapeHtml(p.tipoComunicacao)||'Comunicação'}</b> — ${escapeHtml(p.data_disponibilizacao)||'—'}</div>
-        ${resumo?`<div style="font-size:.78rem;margin-top:3px;white-space:pre-wrap">${escapeHtml(resumo.substring(0,500))}${resumo.length>500?'…':''}</div>`:''}
-        ${p.link?`<a href="${escapeHtml(p.link)}" target="_blank" onclick="event.stopPropagation()" class="dd2-link-ext" style="margin-top:4px;padding:3px 8px;font-size:.72rem">🔗 Abrir</a>`:''}
-      </div>`;
-    }).join('');
-    return `<tr style="cursor:pointer" onclick="dd2ToggleDetalhe('${idRow}')"><td style="width:18px;color:#94a3b8;font-size:.75rem" id="${idRow}-seta">▸</td><td><span class="dd2-badge info">${escapeHtml(g.tribunal)||'—'}</span></td><td>${escapeHtml(g.classe)||'—'}</td><td style="font-size:.75rem">${escapeHtml(g.numero)||'—'}</td><td>${g.qtd}</td><td style="font-size:.75rem">${escapeHtml(g.ultimaData)||'—'}</td><td style="font-size:.75rem">${origensTxt}</td></tr>
-    <tr id="${idRow}" style="display:none;background:#f8fafc"><td></td><td colspan="6" style="padding:10px 12px">${detalhes}</td></tr>`;
-  }).join('')}</tbody></table></div>`;
-}
-
-// Troca de aba dentro do card "Processos Judiciais". A aba "Comunicações
-// Recentes" já vem carregada (é a busca padrão que roda em toda
-// investigação); as abas "Processos da Empresa"/"dos Sócios" fazem uma
-// busca própria (janela de datas ampla) só na primeira vez que o usuário
-// clica nelas — evita gastar o rate limit do DJEN à toa quando ninguém
-// olha essas abas.
-function dd2AbaJudicial(aba){
-  ['recentes','empresa','socios'].forEach(a=>{
-    document.getElementById('dd2-jud-tab-'+a)?.classList.toggle('active',a===aba);
-  });
-  document.getElementById('dd2-judicial-content').style.display=aba==='recentes'?'':'none';
-  document.getElementById('dd2-judicial-empresa-content').style.display=aba==='empresa'?'':'none';
-  document.getElementById('dd2-judicial-socios-content').style.display=aba==='socios'?'':'none';
-  if((aba==='empresa'||aba==='socios')&&!dd2TodosProcessosData&&!dd2TodosProcessosCarregando){
-    dd2CarregarTodosProcessos();
-  }
-}
-
-async function dd2CarregarTodosProcessos(){
-  if(!dd2JudicialCtx) return;
-  dd2TodosProcessosCarregando=true;
-  const loading='<div class="dd2-loading">⏳ Buscando histórico completo de processos (pode levar alguns segundos)...</div>';
-  document.getElementById('dd2-judicial-empresa-content').innerHTML=loading;
-  document.getElementById('dd2-judicial-socios-content').innerHTML=loading;
-  try{
-    const {nome,docNum,tipo,socios}=dd2JudicialCtx;
-    dd2TodosProcessosData=await dd2BuscarTodosProcessosDJEN(nome,docNum,tipo,socios);
-  }catch(e){
-    dd2TodosProcessosData={items:[],rateLimited:false,algumaFalhou:true};
-  }
-  dd2TodosProcessosCarregando=false;
-  dd2RenderTodosProcessos();
-}
-
-function dd2RenderTodosProcessos(){
-  const {items,rateLimited,algumaFalhou}=dd2TodosProcessosData||{items:[],rateLimited:false,algumaFalhou:false};
-  const grupos=dd2AgruparPorProcesso(items);
-  const gruposEmpresa=grupos.filter(g=>g.daEmpresa);
-  const gruposSocios=grupos.filter(g=>!g.daEmpresa);
-  let avisos='';
-  if(rateLimited) avisos='<p style="color:#b45309;font-size:.82rem;margin-bottom:6px">⚠️ Limite de requisições do DJEN atingido — resultado pode estar incompleto. Tente novamente em cerca de 1 minuto.</p>';
-  else if(algumaFalhou) avisos='<p style="color:#b45309;font-size:.82rem;margin-bottom:6px">⚠️ Uma ou mais buscas no DJEN falharam — resultado pode estar incompleto.</p>';
-  const nota=`<p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Busca no DJEN desde ${DD2_TODOS_PROCESSOS_DESDE.split('-').reverse().join('/')} (o DJEN é recente — tribunais aderiram gradualmente, processos mais antigos podem não aparecer). Agrupado por processo: cada linha pode ter várias comunicações (citação, intimação, edital...), clique pra ver o histórico.</p>`;
-
-  document.getElementById('dd2-judicial-empresa-content').innerHTML=
-    avisos+nota+dd2TabelaProcessosAgrupados(gruposEmpresa,'dd2-proc-emp');
-
-  document.getElementById('dd2-judicial-socios-content').innerHTML=
-    avisos+nota+dd2TabelaProcessosAgrupados(gruposSocios,'dd2-proc-soc');
 }
 
 // Links de verificação manual, como reforço à busca automática do DJEN
@@ -1045,12 +1106,7 @@ const DD2_QUERIDODIARIO_URL='https://api.queridodiario.ok.org.br/gazettes';
 // faz a mesma diferença de precisão que o DOU (dd2FetchDOU) já usa.
 async function dd2FetchQueridoDiario(querystring){
   if(!querystring) return [];
-  // sort_by=descending_date: sem isso, a API ordena por relevância (TF-IDF),
-  // que mistura resultados de anos diferentes fora de ordem — testado na
-  // unha e confirmado que publicações recentes ficavam fora dos top 15,
-  // atrás de resultados antigos "mais relevantes". Com data decrescente,
-  // as publicações mais novas sempre aparecem primeiro.
-  const qs=new URLSearchParams({querystring:'"'+querystring+'"',size:'15',sort_by:'descending_date'}).toString();
+  const qs=new URLSearchParams({querystring:'"'+querystring+'"',size:'15'}).toString();
   const r=await fetch(`${DD2_QUERIDODIARIO_URL}?${qs}`,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(15000)});
   if(!r.ok) throw new Error('HTTP '+r.status);
   const d=await r.json();
@@ -1087,13 +1143,7 @@ async function dd2FetchDOU(querystring){
 // de limpo, sobrar muito pouca letra de verdade (sinal de que é lixo binário).
 function dd2LimparTrecho(txt){
   if(!txt) return '';
-  // Bug corrigido: a versão anterior tinha um espaço literal dentro da
-  // classe de caracteres de controle (`[\x00-\x08...\x1F ]`), removendo
-  // TODOS os espaços do trecho — o texto virava uma palavra só ilegível.
-  // Aqui só some com caracteres de controle de fato, e depois colapsa
-  // quebras de linha/tabs/espaços repetidos (comuns em texto de OCR) num
-  // espaço só, sem grudar as palavras.
-  const limpo=txt.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"").replace(/\s+/g," ").trim();
+  const limpo=txt.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F ]/g,"").trim();
   const letras=(limpo.match(/[a-zA-ZÀ-ÿ]/g)||[]).length;
   if(limpo.length>20 && letras/limpo.length<0.4) return '';
   return limpo;
@@ -1112,61 +1162,10 @@ function dd2LinkManualDoerj(alvo){
   return `<a href="${DD2_DOERJ_URL}" target="_blank" class="dd2-link-ext">🔗 Buscar manualmente no DOERJ${alvo?` — "${escapeHtml(alvo)}"`:''}</a>`;
 }
 
-// Diário Oficial do Município do Rio de Janeiro (DOWEB) — diferente do
-// DOERJ (estadual, bloqueado), o portal municipal (doweb.rio.rj.gov.br)
-// tem uma API de busca com CORS liberado por trás do buscador oficial
-// (buscanova). Não é uma API documentada/contratual — é o mesmo backend
-// (ElasticSearch) que o site deles usa, descoberto observando as chamadas
-// de rede do buscador. Cobertura em tempo real (publicação de um dia
-// aparece buscável no dia seguinte), bem mais rápida que o Querido Diário
-// pra essa cidade especificamente. Só roda quando a empresa/pessoa é do
-// Rio de Janeiro (uf==='RJ'), pra não gastar requisição à toa em quem não
-// tem nada a ver com esse diário.
-const DD2_DOWEB_URL='https://doweb.rio.rj.gov.br/busca/busca/buscar/query/0/';
-const DD2_DOWEB_DESDE='2023-01-01';
-
-async function dd2FetchDOWEB(querystring){
-  if(!querystring) return [];
-  const hoje=new Date().toISOString().split('T')[0];
-  const url=`${DD2_DOWEB_URL}di:${DD2_DOWEB_DESDE}/df:${hoje}/?1=1&q=${encodeURIComponent('"'+querystring+'"')}`;
-  const r=await fetch(url,{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(15000)});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const d=await r.json();
-  return Array.isArray(d?.hits?.hits)?d.hits.hits:[];
-}
-
-// A API do DOWEB só devolve o texto integral da página (_source.conteudo),
-// sem excerpt destacado nem campos separados de data/edição — recorta na
-// mão um trecho ao redor do termo buscado (mesma ideia do dd2LimparTrecho
-// já usado pro DOU) e tenta achar a data da edição por regex no início do
-// texto (formato "Data: <dia da semana>, <dia> de <mês> de <ano>", que é
-// como o cabeçalho de cada página do D.O. Rio se identifica).
-const DD2_MESES={janeiro:'01',fevereiro:'02',março:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};
-// A página costuma ter várias datas soltas no meio do conteúdo (datas de
-// vistoria, de auto de infração etc. de cada item listado) — pegar a
-// primeira ocorrência de "Data:" pegava essas, não a data de publicação da
-// edição. A data confiável é a que vem logo depois de "Assinado
-// Digitalmente" (rodapé de autenticação de cada página, sempre no mesmo
-// formato), então ancora a busca nela em vez de num "Data:" solto.
-function dd2ExtrairDataDOWEB(conteudo){
-  const m=(conteudo||'').match(/Assinado Digitalmente[\s\S]{0,120}?Data:\s*[^,]+,\s*(\d{1,2})\s*de\s*([a-zA-ZçÇ]+)\s*de\s*(\d{4})/i);
-  if(!m) return '';
-  const mes=DD2_MESES[m[2].toLowerCase()];
-  if(!mes) return '';
-  return `${m[1].padStart(2,'0')}/${mes}/${m[3]}`;
-}
-function dd2ExtrairTrechoDOWEB(conteudo,termo){
-  if(!conteudo) return '';
-  const idx=conteudo.toLowerCase().indexOf(termo.toLowerCase());
-  if(idx<0) return dd2LimparTrecho(conteudo.substring(0,400));
-  const inicio=Math.max(0,idx-150);
-  return dd2LimparTrecho(conteudo.substring(inicio,idx+350));
-}
-
 // DOU e Querido Diário devolvem formatos totalmente diferentes (datas em
 // formatos opostos, HTML de destaque embutido no texto etc.) — normaliza
 // os dois pro mesmo formato de exibição.
-function dd2NormalizarDiario(item,fonte,termoBusca){
+function dd2NormalizarDiario(item,fonte){
   if(fonte==='DOU'){
     const trecho=dd2LimparTrecho((item.content||'').replace(/<[^>]+>/g,''));
     return {
@@ -1175,19 +1174,6 @@ function dd2NormalizarDiario(item,fonte,termoBusca){
       data:item.pubDate||'—',
       trechos:[trecho].filter(Boolean),
       url:item.urlTitle?`https://www.in.gov.br/web/dou/-/${item.urlTitle}`:'',
-    };
-  }
-  if(fonte==='DOWEB'){
-    const conteudo=item._source?.conteudo||'';
-    return {
-      titulo:'Rio de Janeiro (Capital) — RJ',
-      local:'Diário Oficial do Município do Rio de Janeiro',
-      data:dd2ExtrairDataDOWEB(conteudo),
-      trechos:[dd2ExtrairTrechoDOWEB(conteudo,termoBusca)].filter(Boolean),
-      // Não temos um link direto pra página exata (a API não devolve isso) —
-      // linka pra busca já pronta no site oficial, com o mesmo termo e
-      // período, pra conferência manual do resultado certo.
-      url:`https://doweb.rio.rj.gov.br/buscanova/#/p=1&q=${encodeURIComponent(termoBusca)}&di=${DD2_DOWEB_DESDE.replace(/-/g,'')}&df=${new Date().toISOString().split('T')[0].replace(/-/g,'')}`,
     };
   }
   return {
@@ -1208,7 +1194,7 @@ function dd2DataDiarioOrdenavel(data){
   return m?`${m[3]}-${m[2]}-${m[1]}`:data;
 }
 
-async function dd2BuscarDiarios(nome,docNum,tipo,uf){
+async function dd2BuscarDiarios(nome,docNum,tipo){
   const docFmt=dd2FmtDoc(docNum,tipo);
   // CPF completo quase nunca é publicado por extenso em diário oficial (LGPD
   // costuma mascarar: "***.456.789-**") — buscar por ele pra pessoa física
@@ -1220,14 +1206,7 @@ async function dd2BuscarDiarios(nome,docNum,tipo,uf){
   const buscasDOU=tipo==='cnpj'?[dd2FetchDOU(docFmt)]:[];
   if(nome){ buscasQD.push(dd2FetchQueridoDiario(nome)); buscasDOU.push(dd2FetchDOU(nome)); }
 
-  // DOWEB (Diário Oficial do Município do Rio) só entra quando a empresa/
-  // pessoa é do Rio de Janeiro — buscar por documento não funciona bem
-  // (a razão social por extenso é o que costuma aparecer, não o CNPJ), então
-  // essa fonte busca só pelo nome/razão social.
-  const termoDoweb=nome||'';
-  const buscasDOWEB=(uf==='RJ'&&termoDoweb)?[dd2FetchDOWEB(termoDoweb)]:[];
-
-  const [resQD,resDOU,resDOWEB]=await Promise.all([Promise.allSettled(buscasQD),Promise.allSettled(buscasDOU),Promise.allSettled(buscasDOWEB)]);
+  const [resQD,resDOU]=await Promise.all([Promise.allSettled(buscasQD),Promise.allSettled(buscasDOU)]);
   let algumaFalhou=false;
   const porChave=new Map();
   resQD.forEach(res=>{
@@ -1246,16 +1225,8 @@ async function dd2BuscarDiarios(nome,docNum,tipo,uf){
       });
     } else algumaFalhou=true;
   });
-  resDOWEB.forEach(res=>{
-    if(res.status==='fulfilled'){
-      res.value.forEach(g=>{
-        const chave='doweb|'+(g._id||'');
-        if(!porChave.has(chave)) porChave.set(chave,{...dd2NormalizarDiario(g,'DOWEB',termoDoweb),_fonte:'DOWEB'});
-      });
-    } else algumaFalhou=true;
-  });
 
-  const resultadosTodos=[...resQD,...resDOU,...resDOWEB];
+  const resultadosTodos=[...resQD,...resDOU];
   if(algumaFalhou&&resultadosTodos.every(r=>r.status==='rejected')) throw new Error('Todas as buscas em diários oficiais falharam');
   const items=[...porChave.values()].sort((a,b)=>dd2DataDiarioOrdenavel(b.data).localeCompare(dd2DataDiarioOrdenavel(a.data)));
   return {items,algumaFalhou};
@@ -1273,13 +1244,13 @@ function dd2RenderDiarios(res,semNome){
   // verde de "sem menção encontrada".
   if(semNome){el.innerHTML=aviso+'<p style="color:#b45309;font-weight:600">⚠️ Nenhum nome disponível pra buscar — informe o nome completo da pessoa no campo acima pra pesquisar nos diários oficiais.</p>'+dd2LinkManualDoerj();return;}
   if(!items.length){el.innerHTML=aviso+'<p style="color:#22c55e;font-weight:600">✅ Nenhuma menção encontrada em diários oficiais.</p>'+dd2LinkManualDoerj();return;}
-  el.innerHTML=aviso+`<p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Busca automática no <strong>DOU — Diário Oficial da União</strong> (atos federais), no <strong>Querido Diário</strong> (Open Knowledge Brasil — mais de 350 municípios) e, quando a empresa/pessoa é do Rio de Janeiro, direto no <strong>Diário Oficial do Município do Rio (DOWEB)</strong> — cobertura mais rápida e completa que o Querido Diário pra essa cidade. O <strong>DOERJ</strong> (Diário Oficial do <u>Estado</u> do RJ) não permite automação — veja o link manual abaixo. Clique num resultado pra ver todos os trechos onde o termo foi encontrado.</p>
+  el.innerHTML=aviso+`<p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Busca automática no <strong>DOU — Diário Oficial da União</strong> (atos federais) e no <strong>Querido Diário</strong> (Open Knowledge Brasil — mais de 350 municípios). O <strong>DOERJ</strong> (Diário Oficial do RJ) não permite automação — veja o link manual abaixo. Clique num resultado pra ver todos os trechos onde o termo foi encontrado.</p>
   ${items.slice(0,30).map((g,i)=>{
     const trechos=(g.trechos||[]).filter(Boolean);
     const trecho=trechos[0]||'';
     const idRow='dd2-diario-det-'+i;
     const resumoCompleto=trechos.length?trechos.map((tx,j)=>`<div style="${j<trechos.length-1?'margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #e2e8f0':''}">${trechos.length>1?`<b>Trecho ${j+1} de ${trechos.length}:</b><br>`:''}${escapeHtml(tx)}</div>`).join(''):'<span style="color:#94a3b8">Nenhum trecho disponível pra exibição.</span>';
-    const badgeCls=g._fonte==='DOU'?'info':g._fonte==='DOWEB'?'ok':'warn';
+    const badgeCls=g._fonte==='DOU'?'info':'warn';
     return `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:8px;background:#fff">
       <div style="cursor:pointer" onclick="dd2ToggleDetalhe('${idRow}','block')">
         <div style="font-weight:600;font-size:.85rem;margin-bottom:2px"><span id="${idRow}-seta" style="color:#94a3b8;font-size:.72rem">▸</span> <span class="dd2-badge ${badgeCls}">${g._fonte}</span> ${escapeHtml(g.titulo)||'—'}</div>
@@ -1363,8 +1334,7 @@ function dd2FetchTCUInidoneos(){
 
 function dd2TcuPorDocumento(items,docNum){
   if(!docNum)return[];
-  const alvo=soAlfanum(docNum);
-  return items.filter(i=>soAlfanum(i.cpf_cnpj)===alvo);
+  return items.filter(i=>(i.cpf_cnpj||'').replace(/\D/g,'')===docNum);
 }
 
 // Match por nome (pros sócios, que no QSA vêm sem CPF completo) — usa o
@@ -1421,8 +1391,6 @@ function dd2RenderJudicial(res,nome,docNum,tipo,socios){
   const el=document.getElementById('dd2-judicial-content');
   const {items,rateLimited,algumaFalhou}=res;
   dd2JudicialNomesAlvo=[nome,...(socios||[]).map(s=>s.nome)].filter(Boolean);
-  dd2JudicialCtx={nome,docNum,tipo,socios};
-  dd2TodosProcessosData=null; // nova busca: invalida cache das abas de processos
   let avisos='';
   if(rateLimited) avisos+='<p style="color:#b45309;font-size:.82rem;margin-bottom:6px">⚠️ Limite de requisições do DJEN atingido — resultado pode estar incompleto. Tente novamente em cerca de 1 minuto.</p>';
   else if(algumaFalhou) avisos+='<p style="color:#b45309;font-size:.82rem;margin-bottom:6px">⚠️ Uma ou mais buscas no DJEN falharam — resultado pode estar incompleto.</p>';
@@ -1616,19 +1584,6 @@ function dd2RenderContratosFederais(data,falhou,nome){
 // e o render deixa claro que é indício a confirmar, não condenação.
 const DD2_SOCIOS_MAX=5;
 
-// Empresas vinculadas ao nome do sócio (outras empresas em que ele também
-// é sócio/administrador) — via Edge Function própria "dd2-socio-empresas",
-// que busca no cnpjtransparencia.com.br no servidor (contorna o CORS, que
-// esse site não libera) e devolve JSON limpo. Ver esse arquivo pra
-// detalhes/limitações: supabase/functions/dd2-socio-empresas/index.ts.
-async function dd2FetchEmpresasVinculadas(nome){
-  const url=`${SUPABASE_URL}/functions/v1/dd2-socio-empresas?nome=${encodeURIComponent(nome)}`;
-  const r=await fetch(url,{headers:{'apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},signal:AbortSignal.timeout(15000)});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const d=await r.json();
-  return Array.isArray(d?.empresas)?d.empresas:[];
-}
-
 function dd2NomesBatem(nomeAlvo,nomeCandidato){
   const tokensAlvo=dd2TokensRelevantes(nomeAlvo);
   if(tokensAlvo.length<2)return false; // nome de 1 token = homônimo quase certo
@@ -1641,10 +1596,9 @@ function dd2NomesBatem(nomeAlvo,nomeCandidato){
 // nomeParte de cada sócio) — cruzamos aqui por nome em vez de repetir as
 // chamadas, senão estouraria o rate limit do DJEN (20 req/janela). Vem null
 // quando a consulta judicial está desligada/falhou = "não verificado".
-async function dd2InvestigarSocios(socios,djenItems,docAtual){
+async function dd2InvestigarSocios(socios,djenItems){
   const alvo=(socios||[]).filter(s=>s.nome).slice(0,DD2_SOCIOS_MAX);
-  const docAtualLimpo=soAlfanum(docAtual);
-  const chamar=(rota,params)=>dd2Chamar(rota,params,12000);
+  const chamar=(rota,params)=>fetch(dd2PortalUrl(rota,params+'&pagina=1'),{headers:dd2PortalHeaders(),signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(d=>Array.isArray(d)?d:[]);
   const judicialDoSocio=(nome)=>{
     if(!Array.isArray(djenItems))return null; // não verificado
     const nomeUp=nome.toUpperCase();
@@ -1655,7 +1609,7 @@ async function dd2InvestigarSocios(socios,djenItems,docAtual){
   };
   return Promise.all(alvo.map(async s=>{
     const enc=encodeURIComponent(s.nome);
-    const [pepR,ceisR,cnepR,ceafR,intlR,tcuR,midiaR,qdR,douR,empresasR]=await Promise.allSettled([
+    const [pepR,ceisR,cnepR,ceafR,intlR,tcuR,midiaR,qdR,douR]=await Promise.allSettled([
       dd2FetchPep(s.nome,''),
       chamar('ceis','nomeSancionado='+enc),
       chamar('cnep','nomeSancionado='+enc),
@@ -1665,19 +1619,14 @@ async function dd2InvestigarSocios(socios,djenItems,docAtual){
       dd2FetchGoogleNewsRSS(`"${s.nome}" AND (fraude OR corrupção OR condenado OR investigação OR "lavagem de dinheiro" OR crime OR golpe OR escândalo)`),
       dd2FetchQueridoDiario(s.nome),
       dd2FetchDOU(s.nome),
-      dd2FetchEmpresasVinculadas(s.nome),
     ]);
     const pega=r=>r.status==='fulfilled'&&Array.isArray(r.value)?r.value:[];
     const diarios=[
       ...pega(douR).map(d=>dd2NormalizarDiario(d,'DOU')),
       ...pega(qdR).map(d=>dd2NormalizarDiario(d,'QD')),
     ];
-    // Não faz sentido listar a própria empresa que está sendo investigada
-    // como "outra empresa vinculada" — ela obviamente aparece no resultado,
-    // não é achado novo nenhum.
-    const empresasVinculadas=pega(empresasR).filter(emp=>soAlfanum(emp.cnpj)!==docAtualLimpo);
     return{
-      nome:s.nome,qual:s.qual||'',doc:s.doc||'',tipoSocio:s.tipoSocio||'',
+      nome:s.nome,qual:s.qual||'',
       pep:pega(pepR).filter(p=>dd2NomesBatem(s.nome,p.nome||'')),
       ceis:pega(ceisR).filter(x=>dd2NomesBatem(s.nome,x.sancionado?.nome||x.pessoa?.nome||'')),
       cnep:pega(cnepR).filter(x=>dd2NomesBatem(s.nome,x.sancionado?.nome||x.pessoa?.nome||'')),
@@ -1687,12 +1636,10 @@ async function dd2InvestigarSocios(socios,djenItems,docAtual){
       midia:pega(midiaR).slice(0,5),
       judicial:judicialDoSocio(s.nome),
       diarios:diarios.slice(0,8),
-      empresasVinculadas,
       falhas:{
         pep:pepR.status==='rejected',ceis:ceisR.status==='rejected',cnep:cnepR.status==='rejected',
         ceaf:ceafR.status==='rejected',intl:intlR.status==='rejected',tcu:tcuR.status==='rejected',midia:midiaR.status==='rejected',
         diarios:qdR.status==='rejected'&&douR.status==='rejected',
-        empresas:empresasR.status==='rejected',
       },
     };
   }));
@@ -1716,13 +1663,8 @@ function dd2RenderSocios(lista){
     if(s.judicial?.length)badges.push(`<span class="dd2-badge warn">&#9878; ${s.judicial.length} comunicação(ões) DJEN</span>`);
     if(s.diarios?.length)badges.push(`<span class="dd2-badge warn">&#128220; ${s.diarios.length} diário(s)</span>`);
     if(s.midia.length)badges.push(`<span class="dd2-badge warn">&#128240; ${s.midia.length} notícia(s)</span>`);
-    // Empresa vinculada não é achado negativo por si só (é normal uma pessoa
-    // ter mais de uma empresa) — badge informativo (info), não soma no
-    // "limpo/hit" que pinta o bloco de vermelho.
-    const empresasBadge=s.empresasVinculadas?.length?`<span class="dd2-badge info">&#127970; ${s.empresasVinculadas.length} outra(s) empresa(s)</span>`:'';
     const falhouAlgo=Object.values(s.falhas).some(Boolean);
     const limpo=!badges.length;
-    if(empresasBadge)badges.push(empresasBadge);
     if(limpo)badges.push(falhouAlgo?'<span class="dd2-badge warn">Parcialmente verificado</span>':'<span class="dd2-badge ok">&#9989; Nada encontrado</span>');
     const idDet='dd2-socio-det-'+i;
     const linhaBase=(rotulo,itens,fmt)=>itens.length?`<div style="margin-top:6px"><b>${rotulo}:</b><ul style="margin:4px 0 0 18px;padding:0">${itens.map(fmt).join('')}</ul></div>`:'';
@@ -1735,8 +1677,6 @@ function dd2RenderSocios(lista){
       ${linhaBase('Sanções internacionais (indício — confirmar na fonte)',s.intl,x=>`<li>${escapeHtml((x.names||[]).join(', '))||'—'}${x.source?' — '+escapeHtml(String(x.source).toUpperCase()):''}</li>`)}
       ${linhaBase('Comunicações processuais (DJEN) em que o sócio aparece',s.judicial||[],p=>`<li>${escapeHtml(p.tipoComunicacao)||'Comunicação'} — ${escapeHtml(p.nomeClasse||p.numeroprocessocommascara)||'processo'} <span style="color:#94a3b8;font-size:.75rem">(${escapeHtml(p.siglaTribunal)||'—'}, ${escapeHtml(p.data_disponibilizacao)||'—'})</span></li>`)}
       ${linhaBase('Menções em diários oficiais (DOU + municipais)',s.diarios||[],d=>`<li>${d.url?`<a href="${escapeHtml(d.url)}" target="_blank" style="color:#0f2d4a">${escapeHtml(d.titulo)||'—'}</a>`:escapeHtml(d.titulo)||'—'} <span style="color:#94a3b8;font-size:.75rem">(${escapeHtml(d.local)||''}, ${escapeHtml(d.data)||''})</span>${(d.trechos&&d.trechos[0])?`<div style="color:#64748b;font-size:.76rem;margin-top:2px">"…${escapeHtml(d.trechos[0].slice(0,220))}…"</div>`:''}</li>`)}
-      ${linhaBase('Outras empresas vinculadas a esse nome',s.empresasVinculadas||[],e=>`<li><a href="https://cnpjtransparencia.com.br/cnpj/${escapeHtml(e.cnpj)}" target="_blank" style="color:#0f2d4a">${escapeHtml(e.nome)||'—'}</a> <span style="color:#94a3b8;font-size:.75rem">(${escapeHtml(e.papel)||'—'}${e.municipioUf?' · '+escapeHtml(e.municipioUf):''}${e.situacao?' · '+escapeHtml(e.situacao):''})</span></li>`)}
-      ${s.falhas.empresas?'<div style="color:#94a3b8;margin-top:6px;font-size:.78rem">🏢 Empresas vinculadas: não verificado — a consulta falhou nesta investigação.</div>':''}
       ${s.judicial===null?'<div style="color:#94a3b8;margin-top:6px;font-size:.78rem">⚖ Processos (DJEN): não verificados — a consulta judicial está desligada ou falhou nesta investigação.</div>':''}
       ${linhaBase('Mídia negativa',s.midia,n=>`<li><a href="${escapeHtml(n.link)||'#'}" target="_blank" style="color:#0f2d4a">${escapeHtml(n.title)||'—'}</a> <span style="color:#94a3b8;font-size:.75rem">(${n.pubDate?new Date(n.pubDate).toLocaleDateString('pt-BR'):''} — ${escapeHtml(n.source?.name)||''})</span></li>`)}
       ${limpo&&!falhouAlgo?'<div style="color:#22c55e;margin-top:6px">✅ Nenhum apontamento nas bases consultadas (PEP, CEIS, CNEP, CEAF, TCU, sanções internacionais, DJEN, diários oficiais e mídia negativa).</div>':''}
@@ -1747,19 +1687,11 @@ function dd2RenderSocios(lista){
         <a href="https://news.google.com/search?q=${encodeURIComponent('"'+s.nome+'"')}&hl=pt-BR&gl=BR&ceid=BR:pt-419" target="_blank" class="dd2-link-ext">🔗 Google Notícias</a>
         <a href="https://www.google.com/search?q=${encodeURIComponent('"'+s.nome+'" '+(s.qual?'sócio':''))}" target="_blank" class="dd2-link-ext">🔗 Google</a>
       </div>`;
-    // CNPJ do sócio só vem "limpo" (sem máscara) quando ele é pessoa jurídica
-    // — CPF de pessoa física vem sempre mascarado pela Receita (ex.:
-    // "***866757**") e não deve ser exibido/linkado.
-    const docLimpo=soAlfanum(s.doc);
-    const cnpjSocioHtml=(s.tipoSocio==='PJ'&&docLimpo.length===14)
-      ?`<a href="https://cnpjtransparencia.com.br/cnpj/${docLimpo}" target="_blank" onclick="event.stopPropagation()" style="color:#0f2d4a;font-size:.75rem;font-family:'DM Mono',monospace">${dd2FmtDoc(docLimpo,'cnpj')}</a>`
-      :'';
     return `<div class="dd2-socio-bloco ${limpo?'':'hit'}">
       <div class="dd2-socio-head" style="cursor:pointer" onclick="dd2ToggleDetalhe('${idDet}','block')">
         <span style="color:#94a3b8;font-size:.75rem" id="${idDet}-seta">▸</span>
         <span style="font-weight:700">&#128100; ${escapeHtml(s.nome)}</span>
         <span style="color:#64748b;font-size:.78rem">${escapeHtml(s.qual)||''}</span>
-        ${cnpjSocioHtml}
         <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${badges.join('')}</span>
       </div>
       <div id="${idDet}" style="display:none;padding:10px 14px;border-top:1px solid #e2e8f0;font-size:.82rem;color:#334155;line-height:1.55">${detalhe}</div>
@@ -1767,33 +1699,8 @@ function dd2RenderSocios(lista){
   }).join('');
   const extras=(lista.length<(dd2CadastralData?.socios||[]).length)?`<p style="font-size:.75rem;color:#94a3b8;margin-top:8px">Investigação automática limitada aos ${DD2_SOCIOS_MAX} primeiros sócios do QSA — os demais aparecem nos links manuais da seção Judicial.</p>`:'';
   el.innerHTML=`
-    <p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Cada sócio do QSA é verificado individualmente em: <strong>PEP</strong>, <strong>CEIS</strong>, <strong>CNEP</strong>, <strong>CEAF</strong>, <strong>inidôneos do TCU</strong>, <strong>sanções internacionais</strong>, <strong>processos (DJEN)</strong>, <strong>diários oficiais (DOU + municipais)</strong>, <strong>mídia negativa</strong> e <strong>outras empresas em que também é sócio/administrador</strong> (útil pra achar conflito de interesse ou empresa relacionada não declarada). Clique num sócio pra ver o detalhe. Buscas por nome podem trazer homônimos — trate como indício e confirme pelo CPF na fonte antes de decidir.</p>
+    <p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Cada sócio do QSA é verificado individualmente em: <strong>PEP</strong>, <strong>CEIS</strong>, <strong>CNEP</strong>, <strong>CEAF</strong>, <strong>inidôneos do TCU</strong>, <strong>sanções internacionais</strong>, <strong>processos (DJEN)</strong>, <strong>diários oficiais (DOU + municipais)</strong> e <strong>mídia negativa</strong>. Clique num sócio pra ver o detalhe. Buscas por nome podem trazer homônimos — trate como indício e confirme pelo CPF na fonte antes de decidir.</p>
     ${blocos}${extras}`;
-}
-
-// Render simples pra quando a busca é por CPF/nome direto (sem CNPJ) — não
-// tem QSA/sócios pra investigar, só mostra em quais outras empresas esse
-// nome também aparece como sócio/administrador. PEP, sanções, mídia negativa
-// etc. do próprio indivíduo já aparecem nas outras seções do relatório.
-function dd2LinkManualEmpresasVinculadas(nome){
-  const url='https://cnpjtransparencia.com.br/socio/?nome='+encodeURIComponent(nome||'');
-  return `<div class="dd2-links-ext"><a href="${url}" target="_blank" class="dd2-link-ext">🔗 Consultar manualmente no CNPJ Transparência</a></div>`;
-}
-
-function dd2RenderEmpresasPessoa(nome,empresas){
-  const el=document.getElementById('dd2-socios-content');
-  if(empresas===null){
-    el.innerHTML=`<p style="color:#ef4444;font-size:.85rem">⚠️ Não foi possível consultar empresas vinculadas a este nome no momento.</p>${dd2LinkManualEmpresasVinculadas(nome)}`;
-    return;
-  }
-  if(!empresas.length){
-    el.innerHTML=`<p style="color:#22c55e;font-size:.85rem">✅ Nenhuma outra empresa encontrada vinculada a este nome.</p>${dd2LinkManualEmpresasVinculadas(nome)}`;
-    return;
-  }
-  const linhas=empresas.map(e=>`<li style="margin-bottom:4px"><a href="https://cnpjtransparencia.com.br/cnpj/${escapeHtml(e.cnpj)}" target="_blank" style="color:#0f2d4a">${escapeHtml(e.nome)||'—'}</a> <span style="color:#94a3b8;font-size:.75rem">(${escapeHtml(e.papel)||'—'}${e.municipioUf?' · '+escapeHtml(e.municipioUf):''}${e.situacao?' · '+escapeHtml(e.situacao):''})</span></li>`).join('');
-  el.innerHTML=`<p style="font-size:.78rem;color:#64748b;margin-bottom:10px">Empresas em que <strong>${escapeHtml(nome)}</strong> também aparece como sócio/administrador no quadro societário (útil pra achar conflito de interesse ou vínculo não declarado). Busca por nome pode trazer homônimos — trate como indício e confirme pelo CPF na fonte antes de decidir.</p>
-  <ul style="margin:0;padding-left:18px">${linhas}</ul>
-  ${dd2LinkManualEmpresasVinculadas(nome)}`;
 }
 
 const DD2_BOLSA_MANUAL_URL='https://portaldatransparencia.gov.br/beneficios/novo-bolsa-familia';
@@ -2141,249 +2048,4 @@ function dd2RenderChecklist(){
     <span>${i.state==='ok'?'&#9989;':i.state==='warn'?'&#9888;&#65039;':'&#10060;'}</span>
     <span>${i.icon} ${i.label}</span>
   </div>`).join('');
-}
-
-// ═══════════════════════════════════════════════════════
-// RADAR — acompanhamento de mudanças entre pesquisas
-// ═══════════════════════════════════════════════════════
-// Lista de empresas/pessoas marcadas pra acompanhamento (tabela "dd2_radar",
-// acessada como qualquer outra tabela autenticada via Edge Function "api" —
-// mesmo padrão de sbGet/sbInsert/sbDelete usado no resto do app). Cada item
-// guarda um "snapshot" (jsonb) com as chaves das últimas ocorrências vistas
-// em cada fonte — a próxima verificação compara contra esse snapshot pra
-// saber o que é novo, sem precisar guardar o payload inteiro.
-//
-// A verificação é SEMPRE manual, item por item (botão "Verificar agora") —
-// nunca automática/em lote — porque o DJEN só libera ~20 requisições por
-// janela por IP; verificar uma lista inteira de uma vez estouraria esse
-// limite rapidinho e derrubaria a verificação de todo mundo.
-let dd2RadarLista=null;
-// {tipo,doc,nome} da última investigação rodada na aba "Nova Pesquisa" —
-// usado pelo botão "Adicionar ao Radar" no relatório, pra não precisar
-// redigitar os dados de quem acabou de ser pesquisado.
-let dd2UltimaPesquisa=null;
-
-function dd2TrocarView(view){
-  document.getElementById('dd2-view-pesquisa').style.display=view==='pesquisa'?'block':'none';
-  document.getElementById('dd2-view-radar').style.display=view==='radar'?'block':'none';
-  document.getElementById('dd2-view-tab-pesquisa').classList.toggle('active',view==='pesquisa');
-  document.getElementById('dd2-view-tab-radar').classList.toggle('active',view==='radar');
-  if(view==='radar'&&dd2RadarLista===null) dd2RadarCarregar();
-}
-
-async function dd2RadarCarregar(){
-  const el=document.getElementById('dd2-radar-lista');
-  el.innerHTML='<div class="dd2-loading">&#9203; Carregando radar...</div>';
-  try{
-    dd2RadarLista=await sbGet('dd2_radar');
-  }catch(e){
-    dd2RadarLista=null;
-    el.innerHTML=`<p style="color:#ef4444">⚠️ Não foi possível carregar o radar: ${escapeHtml(e.message)}</p>`;
-    return;
-  }
-  dd2RadarRenderLista();
-}
-
-function dd2RadarStatusBadge(item){
-  if(!item.ultima_verificacao) return '<span class="dd2-badge info">&#128312; Nunca verificado</span>';
-  const r=item.ultimo_resultado;
-  if(r&&r.totalNovidades) return `<span class="dd2-badge danger">&#128308; ${r.totalNovidades} novidade(s)</span>`;
-  return '<span class="dd2-badge ok">&#9989; Sem mudanças</span>';
-}
-
-function dd2RadarRenderLista(){
-  const el=document.getElementById('dd2-radar-lista');
-  const lista=(dd2RadarLista||[]).slice().sort((a,b)=>(b.criado_em||'').localeCompare(a.criado_em||''));
-  if(!lista.length){
-    el.innerHTML='<p style="color:#64748b;font-size:.85rem">Nenhum item no radar ainda. Adicione uma empresa ou pessoa acima, ou clique em "&#128225; Adicionar ao Radar" depois de rodar uma pesquisa na aba Nova Pesquisa.</p>';
-    return;
-  }
-  el.innerHTML=`<div style="overflow-x:auto"><table class="dd2-table"><thead><tr>
-    <th>Nome / Razão</th><th>Tipo</th><th>Documento</th><th>Adicionado em</th><th>Última verificação</th><th>Status</th><th>Ações</th>
-  </tr></thead><tbody>${lista.map(item=>{
-    const docFmt=item.doc?dd2FmtDoc(item.doc,item.tipo):'—';
-    const r=item.ultimo_resultado;
-    let detalhes='';
-    if(r&&r.partes&&r.partes.length){
-      detalhes=`<tr><td colspan="7" style="background:#f8fafc;font-size:.8rem;color:#334155;padding:10px 16px"><ul style="margin:0;padding-left:18px">${r.partes.map(p=>`<li>${p}</li>`).join('')}</ul>${r.falhas&&r.falhas.length?`<div style="color:#b45309;margin-top:4px">&#9888;&#65039; Não verificado nesta rodada: ${escapeHtml(r.falhas.join(', '))}</div>`:''}</td></tr>`;
-    } else if(item.ultima_verificacao){
-      const msg=r&&r.primeiraVez?'Primeira verificação — ponto de partida registrado. A comparação de mudanças aparece a partir da próxima verificação.':'Nenhuma novidade encontrada desde a última verificação.';
-      detalhes=`<tr><td colspan="7" style="background:#f8fafc;font-size:.8rem;color:#64748b;padding:8px 16px">${msg}${r&&r.falhas&&r.falhas.length?`<div style="color:#b45309;margin-top:4px">&#9888;&#65039; Não verificado nesta rodada: ${escapeHtml(r.falhas.join(', '))}</div>`:''}</td></tr>`;
-    }
-    return `<tr id="dd2-radar-row-${item.id}">
-      <td>${escapeHtml(item.nome)}</td>
-      <td>${item.tipo==='cnpj'?'&#127970; CNPJ':'&#128100; CPF'}</td>
-      <td style="font-family:'DM Mono',monospace">${docFmt}</td>
-      <td>${item.criado_em?new Date(item.criado_em).toLocaleDateString('pt-BR'):'—'}</td>
-      <td>${item.ultima_verificacao?new Date(item.ultima_verificacao).toLocaleString('pt-BR'):'—'}</td>
-      <td>${dd2RadarStatusBadge(item)}</td>
-      <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="dd2RadarVerificar(${item.id})">&#128269; Verificar agora</button><button class="btn btn-outline btn-sm" onclick="dd2RadarRemover(${item.id})">&#128465;&#65039;</button></div></td>
-    </tr>${detalhes}`;
-  }).join('')}</tbody></table></div>`;
-}
-
-async function dd2RadarAdicionarManual(){
-  const tipo=document.getElementById('dd2-radar-tipo').value;
-  const doc=document.getElementById('dd2-radar-doc').value;
-  const nome=document.getElementById('dd2-radar-nome').value;
-  const ok=await dd2RadarAdicionar(tipo,doc,nome);
-  if(ok){
-    document.getElementById('dd2-radar-doc').value='';
-    document.getElementById('dd2-radar-nome').value='';
-  }
-}
-
-async function dd2RadarAdicionar(tipo,doc,nome){
-  nome=(nome||'').trim();
-  if(!nome){alert('Informe o nome ou razão social pra adicionar ao Radar.');return false;}
-  const docLimpo=tipo==='cnpj'?soAlfanum(doc):(doc||'').replace(/\D/g,'');
-  const row={id:Date.now(),tipo,doc:docLimpo||null,nome,criado_em:new Date().toISOString(),ultima_verificacao:null,snapshot:null,ultimo_resultado:null};
-  try{
-    await sbInsert('dd2_radar',row);
-  }catch(e){
-    alert('Erro ao adicionar ao Radar: '+e.message);
-    return false;
-  }
-  dd2RadarLista=null;
-  if(document.getElementById('dd2-view-radar').style.display!=='none') await dd2RadarCarregar();
-  return true;
-}
-
-async function dd2RadarAdicionarDoRelatorio(){
-  if(!dd2UltimaPesquisa||!dd2UltimaPesquisa.nome){
-    alert('Não foi possível identificar o nome/razão social desta pesquisa pra adicionar ao Radar.');
-    return;
-  }
-  const ok=await dd2RadarAdicionar(dd2UltimaPesquisa.tipo,dd2UltimaPesquisa.doc,dd2UltimaPesquisa.nome);
-  if(ok) alert('Adicionado ao Radar! Veja a aba "📡 Radar" pra acompanhar.');
-}
-
-async function dd2RadarRemover(id){
-  if(!confirm('Remover este item do Radar? O histórico de verificação dele será perdido.'))return;
-  try{
-    await sbDelete('dd2_radar',id);
-  }catch(e){
-    alert('Erro ao remover do Radar: '+e.message);
-    return;
-  }
-  dd2RadarLista=(dd2RadarLista||[]).filter(x=>x.id!==id);
-  dd2RadarRenderLista();
-}
-
-// Verificação manual de UM item do radar — busca as mesmas fontes usadas na
-// investigação principal (DJEN, diários oficiais, PEP/CEIS/CNEP/TCU/sanções
-// internacionais, mídia negativa e, pra CNPJ, situação cadastral + QSA) e
-// compara contra o snapshot da verificação anterior. Fonte que falhar nesta
-// rodada NÃO conta como "sem novidade" — mantém o snapshot anterior daquela
-// fonte intacto (fica "não verificado", não "limpo") e aparece na lista de
-// falhas, pro usuário saber que aquele pedaço não foi realmente conferido.
-async function dd2RadarVerificar(id){
-  const item=(dd2RadarLista||[]).find(x=>x.id===id);
-  if(!item)return;
-  const row=document.getElementById('dd2-radar-row-'+id);
-  const btn=row?.querySelector('button');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Verificando...';}
-  try{
-    const nome=item.nome, doc=item.doc||'', tipo=item.tipo;
-    const docFmt=doc?dd2FmtDoc(doc,tipo):'';
-    const chamar=(rota,params)=>dd2Chamar(rota,params,12000);
-    const enc=encodeURIComponent(nome);
-
-    const [djenR,diariosR,pepR,ceisR,cnepR,tcuR,intlR,midiaR,cadR]=await Promise.allSettled([
-      dd2BuscarTodosProcessosDJEN(nome,doc,tipo,[]),
-      dd2BuscarDiarios(nome,doc,tipo,''),
-      dd2FetchPep(nome,tipo==='cpf'?doc:''),
-      chamar('ceis','nomeSancionado='+enc),
-      chamar('cnep','nomeSancionado='+enc),
-      dd2FetchTCUInidoneos().then(items=>dd2TcuPorNome(items,nome)),
-      dd2FetchSanctionsNetwork(nome).then(h=>dd2FiltrarRuidoSancoesIntl(h,nome)),
-      dd2BuscarMidiaNegativa(nome,docFmt,''),
-      (tipo==='cnpj'&&doc)?dd2BuscarCNPJ(doc):Promise.resolve(null),
-    ]);
-
-    const anterior=item.snapshot||{};
-    const falhas=[];
-    // extrator(valor) roda só se a fonte respondeu OK nesta rodada; se
-    // falhou, devolve undefined (sinal pra "manter snapshot anterior" mais
-    // abaixo) e registra o nome da fonte em `falhas`.
-    const fonte=(nomeFonte,res,extrator)=>{
-      if(res.status==='fulfilled') return extrator(res.value);
-      falhas.push(nomeFonte);
-      return undefined;
-    };
-
-    const djenIds=fonte('Processos (DJEN)',djenR,v=>v.items.map(x=>String(x.id)));
-    const diariosKeys=fonte('Diários oficiais',diariosR,v=>v.items.map(x=>x.url||(x.titulo+'|'+x.data)));
-    const pepKeys=fonte('PEP',pepR,v=>v.map(p=>p.nome+'|'+p.dt_inicio_exercicio));
-    const ceisKeys=fonte('CEIS',ceisR,v=>v.map(x=>(x.sancionado?.nome||x.pessoa?.nome||'')+'|'+(x.tipoSancao?.descricaoResumida||'')));
-    const cnepKeys=fonte('CNEP',cnepR,v=>v.map(x=>(x.sancionado?.nome||x.pessoa?.nome||'')+'|'+(x.tipoSancao?.descricaoResumida||'')));
-    const tcuKeys=fonte('TCU',tcuR,v=>v.map(x=>x.processo||x.nome));
-    const intlKeys=fonte('Sanções internacionais',intlR,v=>v.map(x=>(x.names||[]).join(',')+'|'+(x.source||'')));
-    const midiaKeys=fonte('Mídia negativa',midiaR,v=>v.map(x=>x.link));
-    let situacao,sociosNomes;
-    if(tipo==='cnpj'&&doc){
-      situacao=fonte('Situação cadastral',cadR,v=>v?.situacao||'');
-      sociosNomes=fonte('Quadro societário (QSA)',cadR,v=>(v?.socios||[]).map(s=>s.nome).sort());
-    }
-
-    const diffCount=(atualArr,antArr)=>{
-      if(atualArr===undefined)return 0; // fonte falhou nesta rodada — não conta como novidade
-      if(!antArr)return 0; // primeira vez, sem base de comparação
-      const antSet=new Set(antArr);
-      return atualArr.filter(k=>!antSet.has(k)).length;
-    };
-    const dJudicial=diffCount(djenIds,anterior.djenIds);
-    const dDiarios=diffCount(diariosKeys,anterior.diariosKeys);
-    const dPep=diffCount(pepKeys,anterior.pepKeys);
-    const dCeis=diffCount(ceisKeys,anterior.ceisKeys);
-    const dCnep=diffCount(cnepKeys,anterior.cnepKeys);
-    const dTcu=diffCount(tcuKeys,anterior.tcuKeys);
-    const dIntl=diffCount(intlKeys,anterior.intlKeys);
-    const dMidia=diffCount(midiaKeys,anterior.midiaKeys);
-    // Comparação normalizada (maiúsculas/minúsculas) — BrasilAPI, ReceitaWS e
-    // CNPJ.ws escrevem a mesma situação com capitalização diferente ("ATIVA"
-    // vs "Ativa"), o que gerava falso positivo de "mudança" mesmo sem
-    // nenhuma alteração real, só por ter caído numa fonte diferente na API
-    // de fallback entre uma verificação e outra.
-    const situacaoMudou=!!(anterior.situacao&&situacao&&anterior.situacao.trim().toUpperCase()!==situacao.trim().toUpperCase());
-    const socioMudou=!!(anterior.sociosNomes&&sociosNomes&&JSON.stringify(anterior.sociosNomes)!==JSON.stringify(sociosNomes));
-
-    const primeiraVez=!item.snapshot;
-    const totalNovidades=dJudicial+dDiarios+dPep+dCeis+dCnep+dTcu+dIntl+dMidia+(situacaoMudou?1:0)+(socioMudou?1:0);
-
-    const partes=[];
-    if(dJudicial)partes.push(`&#9878; ${dJudicial} novo(s) processo(s)/comunicação(ões) no DJEN`);
-    if(dDiarios)partes.push(`&#128240; ${dDiarios} nova(s) menção(ões) em diário oficial`);
-    if(dPep)partes.push(`&#127963; ${dPep} novo(s) registro(s) PEP`);
-    if(dCeis)partes.push(`&#128171; ${dCeis} nova(s) sanção(ões) CEIS`);
-    if(dCnep)partes.push(`&#128171; ${dCnep} nova(s) sanção(ões) CNEP`);
-    if(dTcu)partes.push(`&#9888;&#65039; ${dTcu} novo(s) registro(s) TCU inidôneos`);
-    if(dIntl)partes.push(`&#127760; ${dIntl} nova(s) sanção(ões) internacional(is)`);
-    if(dMidia)partes.push(`&#128240; ${dMidia} nova(s) notícia(s) negativa(s)`);
-    if(situacaoMudou)partes.push(`&#127970; Situação cadastral mudou: "${escapeHtml(anterior.situacao)}" &#8594; "${escapeHtml(situacao)}"`);
-    if(socioMudou)partes.push('&#128101; Quadro societário (QSA) mudou');
-
-    item.snapshot={
-      djenIds: djenIds!==undefined?djenIds:anterior.djenIds,
-      diariosKeys: diariosKeys!==undefined?diariosKeys:anterior.diariosKeys,
-      pepKeys: pepKeys!==undefined?pepKeys:anterior.pepKeys,
-      ceisKeys: ceisKeys!==undefined?ceisKeys:anterior.ceisKeys,
-      cnepKeys: cnepKeys!==undefined?cnepKeys:anterior.cnepKeys,
-      tcuKeys: tcuKeys!==undefined?tcuKeys:anterior.tcuKeys,
-      intlKeys: intlKeys!==undefined?intlKeys:anterior.intlKeys,
-      midiaKeys: midiaKeys!==undefined?midiaKeys:anterior.midiaKeys,
-      situacao: situacao!==undefined?situacao:anterior.situacao,
-      sociosNomes: sociosNomes!==undefined?sociosNomes:anterior.sociosNomes,
-    };
-    item.ultimo_resultado={totalNovidades,partes,falhas,primeiraVez};
-    item.ultima_verificacao=new Date().toISOString();
-    await sbUpsert('dd2_radar',{
-      id:item.id,tipo:item.tipo,doc:item.doc,nome:item.nome,criado_em:item.criado_em,
-      ultima_verificacao:item.ultima_verificacao,snapshot:item.snapshot,ultimo_resultado:item.ultimo_resultado
-    });
-  }catch(e){
-    alert('Erro ao verificar: '+e.message);
-  }finally{
-    dd2RadarRenderLista();
-  }
 }
