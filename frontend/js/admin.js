@@ -27,6 +27,7 @@ const LOG_MODULOS = {
   'rm_planos':'Planos RM', 'usuarios':'Usuários', 'sistema':'Sistema',
   'fbboards':'Flow Board', 'permissoes':'Permissões',
   'due-diligence':'Due Diligence', 'due-diligence2':'Due Diligence 2',
+  'funcionarios':'Funcionários',
 };
 
 let _logsCache = null; // cache em memória para a sessão
@@ -469,36 +470,107 @@ const USERS_KEY = 'ch_usuarios_v1';
 const CORES_AVATAR = ['#0f2d4a','#00c49a','#3b82f6','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#06b6d4','#ec4899'];
 
 async function usersLoad() {
-  // Fonte de verdade: tabela "usuarios" via Edge Function (resposta sanitizada,
-  // NUNCA traz hash de senha). Substitui o antigo blob em settings (bloqueado por RLS).
-  if(USE_SUPABASE && getAppToken()) {
+  // Limpar array — mantém só admin — evita re-adição de excluídos
+  while(USUARIOS.length > 1) USUARIOS.pop();
+
+  // Buscar via REST direto (anon key) — independente do Edge Function
+  if(USE_SUPABASE) {
     try {
-      const rows = await sbGet('usuarios');
-      if(Array.isArray(rows)) {
-        USUARIOS = rows.map(u => ({
-          id: u.id, email: u.email, nome: u.nome, perfil: u.perfil,
-          avatar: u.avatar || (u.nome || '?').substring(0,2).toUpperCase(),
-          cor: u.cor || '#0f2d4a'
-        }));
-        localStorage.setItem(USERS_KEY, JSON.stringify(USUARIOS));
-        console.log('[usersLoad] OK:', USUARIOS.length, 'usuario(s)');
-        return;
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/settings?key=eq.usuarios_extras&select=value`,
+        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON } }
+      );
+      if(r.ok) {
+        const rows = await r.json();
+        if(rows && rows[0] && rows[0].value) {
+          const extras = JSON.parse(rows[0].value);
+          if(Array.isArray(extras)) {
+            extras.forEach(u => {
+              if(u.email !== ADMIN_EMAIL) USUARIOS.push(u);
+            });
+            localStorage.setItem(USERS_KEY, JSON.stringify(extras));
+            console.log('[usersLoad] OK:', extras.length, 'usuario(s)');
+            return;
+          }
+        }
       }
-    } catch(e) { console.warn('[usersLoad] Edge erro:', e.message); }
+    } catch(e) { console.warn('[usersLoad] REST erro:', e.message); }
   }
 
-  // Fallback: cache local
+  // Fallback: localStorage
   try {
     const raw = localStorage.getItem(USERS_KEY);
-    if(raw) { const arr = JSON.parse(raw); if(Array.isArray(arr)) USUARIOS = arr; }
+    if(raw) {
+      const extras = JSON.parse(raw);
+      if(Array.isArray(extras))
+        extras.forEach(u => { if(u.email !== ADMIN_EMAIL) USUARIOS.push(u); });
+    }
   } catch(e) {}
 }
 
 async function usersSave() {
-  // A persistencia real dos usuarios agora e feita direto na tabela "usuarios"
-  // pela Edge Function (fluxos de criar/editar/excluir). Aqui mantemos apenas
-  // um cache local para fallback offline.
-  try { localStorage.setItem(USERS_KEY, JSON.stringify(USUARIOS)); } catch(e) {}
+  const extras = USUARIOS.filter(u => u.email !== ADMIN_EMAIL);
+  // 1. Salvar local imediatamente
+  localStorage.setItem(USERS_KEY, JSON.stringify(extras));
+  // 2. Salvar no Supabase via REST direto (anon key — sem depender de token)
+  if(USE_SUPABASE) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
+        },
+        body: JSON.stringify({ key: 'usuarios_extras', value: JSON.stringify(extras) })
+      });
+      if(r.ok) console.log('[usersSave] Supabase OK —', extras.length, 'usuario(s)');
+      else console.warn('[usersSave] Supabase status:', r.status);
+    } catch(e) { console.warn('[usersSave] REST erro:', e.message); }
+
+    // 3. Sincronizar com a tabela real "usuarios" — é ela que a Edge
+    // Function consulta na rota /login. Antes disso, um usuário criado
+    // aqui só existia em settings.usuarios_extras: aparecia na lista e
+    // passava na checagem local, mas o servidor nunca achava o registro
+    // e negava a entrada com "Usuário não encontrado". Isso também
+    // corrige retroativamente qualquer usuário criado antes desse fix.
+    await usersSyncTabelaReal(extras);
+  }
+}
+
+async function usersSyncTabelaReal(extras) {
+  try {
+    const reais = await sbGet('usuarios', '');
+    const lista = Array.isArray(reais) ? reais : [];
+    const porEmail = new Map(lista.map(r => [r.email, r]));
+    // O id é GERADO PELO BANCO (GENERATED ALWAYS) — mandar um valor manual
+    // dá erro "Cannot insert a non-DEFAULT value into column id" (verificado
+    // em produção). Só inclui id quando for update de um registro que já
+    // existe; na criação, deixa o banco gerar.
+    // Colunas reais da tabela (conferidas direto no Table Editor do
+    // Supabase): id, email, nome, perfil, hash, avatar, cor — nada de
+    // ativo/tentativas_login/filial_id, que vieram de um schema
+    // desatualizado (backend antigo, não usado em produção). A tabela TEM
+    // uma coluna extra "senha_hash", redundante com "hash" — e é ela que a
+    // rota /login da Edge Function realmente compara (confirmado testando
+    // ao vivo: só preencher "hash" dá "Senha incorreta"). Preenche as duas
+    // pra cobrir os dois casos.
+    for(const u of extras) {
+      const existente = porEmail.get(u.email);
+      const row = { nome: u.nome, email: u.email, perfil: u.perfil, hash: u.hash, senha_hash: u.hash, avatar: u.avatar, cor: u.cor };
+      if(existente?.id != null) row.id = existente.id;
+      try { await sbUpsert('usuarios', row); }
+      catch(e) { console.warn('[usersSyncTabelaReal] Falha ao sincronizar', u.email, '—', e.message); }
+    }
+    const emailsAtuais = new Set(extras.map(u => u.email));
+    for(const r of lista) {
+      if(r.email !== ADMIN_EMAIL && !emailsAtuais.has(r.email) && r.id != null) {
+        try { await sbDelete('usuarios', r.id); }
+        catch(e) { console.warn('[usersSyncTabelaReal] Falha ao excluir', r.email, '—', e.message); }
+      }
+    }
+  } catch(e) { console.warn('[usersSyncTabelaReal] Falha geral:', e.message); }
 }
 
 function abrirGerenciarUsuarios() {
@@ -598,39 +670,31 @@ async function salvarNovoUsuario() {
   erro.textContent='';
   const palavras=nome.split(' ').filter(p=>p.length>0);
   const avatar=palavras.length>=2?(palavras[0][0]+palavras[palavras.length-1][0]).toUpperCase():nome.substring(0,2).toUpperCase();
+  const hash=await _hashSenha(email,senha);
   const perms=MODULOS.filter(m=>{const el=document.getElementById(`nu-perm-${m.id}`);return el&&el.checked;}).map(m=>m.id);
-  try {
-    // Cria no servidor: a SENHA vai em texto (protegida pelo HTTPS) e vira
-    // bcrypt na Edge Function. O cliente nunca guarda hash de senha.
-    await sbUpsert('usuarios', { nome, email, perfil:_novoUserPerfil, avatar, cor:_novoUserCor, senha });
-  } catch(e) {
-    erro.textContent = 'Falha ao criar usuário: ' + e.message;
-    return;
-  }
-  await usersLoad();               // recarrega a lista real (já com o id gerado)
+  const novoUser={email,hash,nome,perfil:_novoUserPerfil,avatar,cor:_novoUserCor};
+  USUARIOS.push(novoUser);
   PERMISSOES[email]=perms;
-  await permSave();
+  permSave();
+  await usersSave();
   closeModal('modal-novo-usuario');
   renderUsersModal();
   auditLog('usuario', 'usuarios', `Usuário "${nome}" criado`, {email, perfil:_novoUserPerfil});
-  setSaveIndicator(`✅ Usuário ${nome} criado`,'var(--accent)');
+  setSaveIndicator(`✅ Usuário ${nome} criado — sincronizado automaticamente`,'var(--accent)');
 }
 
 async function confirmarExcluirUsuario(email, nome) {
   if(!confirm(`Excluir "${nome}" (${email})?\n\nO usuário perderá todo o acesso ao sistema.`)) return;
-  const alvo = USUARIOS.find(u => u.email === email);
-  try {
-    if(alvo && alvo.id != null) await sbDelete('usuarios', alvo.id);
-  } catch(e) {
-    setSaveIndicator('❌ Falha ao excluir: ' + e.message, 'var(--warn)');
-    return;
-  }
+  // Remove do array em memória
+  const idx = USUARIOS.findIndex(u => u.email === email);
+  if(idx >= 0) USUARIOS.splice(idx, 1);
   delete PERMISSOES[email];
+  // Salvar sequencialmente para garantir consistência no servidor
+  await usersSave();
   await permSave();
-  await usersLoad();
   auditLog('delete', 'usuarios', `Usuário "${nome}" excluído`, {email});
   renderUsersModal();
-  setSaveIndicator(`🗑 Usuário "${nome}" removido`, 'var(--warn)');
+  setSaveIndicator(`🗑 Usuário "${nome}" removido e sincronizado`, 'var(--warn)');
 }
 
 function abrirAlterarSenha(email,nome) {
@@ -656,29 +720,19 @@ async function salvarNovaSenha() {
   erro.textContent='';
   const user=USUARIOS.find(u=>u.email===email);
   if(!user){erro.textContent='Usuário não encontrado.';return;}
+  const ehProprioUsuario=currentUser.email===email;
+  if(ehProprioUsuario || !isAdmin()) {
+    if(!atual){erro.textContent='Informe a senha atual.';return;}
+    const hashAtual=await _hashSenha(email,atual);
+    if(hashAtual!==user.hash){erro.textContent='Senha atual incorreta.';return;}
+  }
   if(!nova||nova.length<6){erro.textContent='Nova senha deve ter pelo menos 6 caracteres.';return;}
   if(nova!==nova2){erro.textContent='As senhas não conferem.';return;}
-  const ehProprioUsuario=currentUser.email===email;
-  try {
-    if(ehProprioUsuario) {
-      // Troca da PRÓPRIA senha — o servidor confere a senha atual (bcrypt)
-      const r = await fetch(`${EDGE_URL}/change-password`, {
-        method:'POST', headers:_efH(),
-        body: JSON.stringify({ senha_atual: atual, nova_senha: nova })
-      });
-      if(!r.ok){ const b=await r.json().catch(()=>({})); erro.textContent = b.error || 'Falha ao alterar senha.'; return; }
-    } else {
-      // Admin redefinindo a senha de OUTRO usuário (sem exigir senha atual)
-      if(!isAdmin()){erro.textContent='Sem permissão.';return;}
-      if(user.id==null){erro.textContent='Usuário sem id — recarregue a lista.';return;}
-      await sbUpsert('usuarios', { id: user.id, senha: nova });
-    }
-  } catch(e) {
-    erro.textContent = 'Falha ao alterar senha: ' + e.message;
-    return;
-  }
+  const novoHash=await _hashSenha(email,nova);
+  user.hash=novoHash;
+  await usersSave();
   closeModal('modal-alterar-senha');
-  setSaveIndicator('✅ Senha alterada','var(--accent)');
+  setSaveIndicator('✅ Senha alterada — sincronizada automaticamente','var(--accent)');
 }
 
 // ════════════════════════════════════════════════════
@@ -690,11 +744,11 @@ const MODULOS = [
   { id:'dashboard',      label:'Dashboard',           icon:'📊', grupo:'Visão Geral',  restrito:false },
   { id:'agenda',         label:'Agenda',              icon:'📅', grupo:'Visão Geral',  restrito:false },
   { id:'filiais',        label:'Filiais e Setores',   icon:'🏢', grupo:'Estrutura',    restrito:false },
+  { id:'funcionarios',   label:'Funcionários',        icon:'👥', grupo:'Recursos Humanos', restrito:false },
   { id:'mapa-risco',     label:'Mapeamento de Risco', icon:'🗺️', grupo:'Compliance',   restrito:false },
   { id:'controles',      label:'Controles Internos',  icon:'🛡️', grupo:'Compliance',   restrito:false },
   { id:'planos-acao',    label:'Planos de Ação',      icon:'📋', grupo:'Compliance',   restrito:false },
   { id:'canal-denuncia', label:'Canal de Denúncia',   icon:'📢', grupo:'Denúncias',    restrito:true  },
-  { id:'canal-denuncia-als', label:'Canal de Denúncia ALS', icon:'📣', grupo:'Denúncias', restrito:true },
   { id:'relatorios',     label:'Relatórios',          icon:'📈', grupo:'Análise',      restrito:true  },
   { id:'importar',       label:'Importar Planilha',   icon:'📥', grupo:'Análise',      restrito:false },
   { id:'flowboard',      label:'Flow Board',          icon:'🗂️', grupo:'Fluxo Visual', restrito:false },
@@ -708,7 +762,7 @@ const PERM_PADRAO = {
   'Compliance':   MODULOS.map(m=>m.id),
   'Auditoria':    MODULOS.filter(m=>!['importar'].includes(m.id)).map(m=>m.id),
   'RH':           ['dashboard','agenda','filiais'],
-  'Diretoria':    MODULOS.filter(m=>!['importar','canal-denuncia','canal-denuncia-als'].includes(m.id)).map(m=>m.id),
+  'Diretoria':    MODULOS.filter(m=>!['importar','canal-denuncia'].includes(m.id)).map(m=>m.id),
   'Operações':    ['dashboard','agenda','filiais','mapa-risco','planos-acao'],
   'Visualizador': ['dashboard','filiais'],
   // Perfis personalizados (criados pelo admin) herdam Compliance por padrão
@@ -727,25 +781,39 @@ function permLoad() {
 
 async function permSave() {
   localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
-  if(USE_SUPABASE && getAppToken()) {
+  if(USE_SUPABASE) {
     try {
-      // Grava via Edge Function (escrita em "settings" exige perfil admin)
-      await sbUpsert('settings', { key: 'permissoes', value: JSON.stringify(PERMISSOES) });
-      console.log('[permSave] OK');
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
+        },
+        body: JSON.stringify({ key: 'permissoes', value: JSON.stringify(PERMISSOES) })
+      });
+      if(r.ok) console.log('[permSave] OK');
+      else console.warn('[permSave] status:', r.status);
     } catch(e) { console.warn('[permSave] erro:', e.message); }
   }
 }
 
 async function permLoadFromSupabase() {
-  if(!USE_SUPABASE || !getAppToken()) return;
+  if(!USE_SUPABASE) return;
   try {
-    // Le via Edge Function (GET liberado para qualquer usuario autenticado)
-    const rows = await _edgeGet('settings?key=permissoes');
-    if(rows && rows[0] && rows[0].value) {
-      const sbPerms = JSON.parse(rows[0].value);
-      PERMISSOES = { ...PERMISSOES, ...sbPerms };
-      localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
-      console.log('[permLoad] OK');
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/settings?key=eq.permissoes&select=value`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON } }
+    );
+    if(r.ok) {
+      const rows = await r.json();
+      if(rows && rows[0] && rows[0].value) {
+        const sbPerms = JSON.parse(rows[0].value);
+        PERMISSOES = { ...PERMISSOES, ...sbPerms };
+        localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
+        console.log('[permLoad] OK');
+      }
     }
   } catch(e) { console.warn('[permLoad] erro:', e.message); }
 }
@@ -768,28 +836,6 @@ function canAccess(modulo) {
 
 function isAdmin() {
   return currentUser && (currentUser.email === ADMIN_EMAIL || currentUser.perfil === 'Admin');
-}
-
-// Navega para a primeira pagina que o usuario tem permissao de ver.
-// Evita cair no dashboard (ou em qualquer modulo restrito) quando o
-// usuario nao tem acesso a ele.
-function irParaPrimeiraPaginaPermitida() {
-  // Quem pode ver o dashboard comeca por ele (comportamento padrao)
-  if(canAccess('dashboard') && document.getElementById('page-dashboard')) {
-    _gotoImpl('dashboard');
-    return;
-  }
-  // Senao, primeiro modulo permitido que tenha pagina correspondente
-  for(const m of MODULOS) {
-    if(canAccess(m.id) && document.getElementById('page-'+m.id)) {
-      _gotoImpl(m.id);
-      return;
-    }
-  }
-  // Nenhum modulo acessivel: esconde todas as paginas e avisa
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const t = document.getElementById('topbar-title');
-  if(t) t.textContent = 'Sem módulos disponíveis';
 }
 
 // ── Atualizar nav com base nas permissões
@@ -867,14 +913,12 @@ function renderPermModal() {
 
     return `
     <div class="perm-user-card" id="perm-card-${user.email.replace('@','_').replace('.','_')}">
-      <div class="perm-user-row">
-        <div class="perm-avatar" style="background:${user.cor}">${user.avatar}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.9rem">${user.nome}</div>
-          <div style="font-size:.75rem;color:var(--text-muted)">${user.email} · <em>${user.perfil}</em></div>
-        </div>
+      <div class="perm-avatar" style="background:${user.cor}">${user.avatar}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.9rem">${user.nome}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">${user.email} · <em>${user.perfil}</em></div>
       </div>
-      <div class="perm-user-actions">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
         <button onclick="permExpandir('${user.email}')" class="btn btn-outline btn-sm" style="font-size:.75rem">
           ⚙️ Configurar módulos
         </button>
@@ -885,7 +929,7 @@ function renderPermModal() {
           🚫 Revogar tudo
         </button>
       </div>
-      <div id="perm-expand-${user.email.replace(/[@.]/g,'_')}" style="display:none;margin-top:4px">
+      <div id="perm-expand-${user.email.replace(/[@.]/g,'_')}" style="display:none;width:100%;margin-top:12px">
         ${renderPermModulos(user.email, perms)}
       </div>
     </div>`;
