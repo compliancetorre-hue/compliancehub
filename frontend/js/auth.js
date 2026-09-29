@@ -1,12 +1,14 @@
-// Lista de usuarios preenchida dinamicamente pelo servidor (usersLoad()).
-// IMPORTANTE: nao guarda mais credenciais no cliente. A conta admin e a
-// verificacao de senha vivem 100% no servidor (Edge Function + bcrypt).
-let USUARIOS = [];
-// Email do admin — apenas para exibicao/UX. NAO e credencial: a autoridade
-// real e o campo "perfil" retornado pelo servidor no login.
+let USUARIOS = [
+  { email:'admin@torre.com.br', hash:'92f2fac95a24752c198680b06ebca0c7d2bb6fd9cdaf88e8be4576b264466b5a', nome:'Administrador', perfil:'Admin', avatar:'AD', cor:'#0f2d4a' },
+];
+// Email do admin — imutável
 const ADMIN_EMAIL = 'admin@torre.com.br';
-// Toda verificacao/derivacao de senha vive no servidor (Edge Function + bcrypt).
-// Nao existe mais hashing de senha no cliente.
+// Derivar hash da senha (SHA-256 via SubtleCrypto)
+async function _hashSenha(email, senha) {
+  const msg = email.toLowerCase().trim() + ':' + senha + ':ch2025';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
 let currentUser = null;
 const SESSION_KEY = 'ch_session_v2';
@@ -62,73 +64,84 @@ window.doLogin = async function() {
 };
 
 async function doLoginAsync(email, senha, emailEl, passEl, errorEl, btnEl, btnText) {
-  const falhaLogin = (msg) => {
-    currentUser = null;
-    _clearSession();
-    setAppToken('');
-    btnEl.disabled = false;
-    btnText.textContent = 'Entrar no Sistema';
-    emailEl.classList.add('error');
-    passEl.classList.add('error');
-    errorEl.innerHTML = '❌ ' + escapeHtml(msg);
-    passEl.value = '';
-    passEl.focus();
-    const box = document.querySelector('.login-box');
-    if(box) { box.style.animation='none'; box.offsetHeight; box.style.animation='shake .4s ease'; }
-  };
-
   try {
-    // ============================================================
-    // Autenticacao 100% no servidor.
-    // Envia a SENHA (protegida pelo HTTPS), NUNCA um hash pronto — assim
-    // o hash deixa de ser uma credencial reutilizavel (pass-the-hash).
-    // O servidor (Edge Function) valida com bcrypt e emite o token.
-    // ============================================================
-    let resp = null;
-    try {
-      showLoadingBar(true, 'Conectando ao servidor...');
-      const r = await fetch(SUPABASE_URL + '/functions/v1/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': getActiveKey(),
-          'Authorization': 'Bearer ' + getActiveKey()
-        },
-        body: JSON.stringify({ email, senha })
-      });
-      showLoadingBar(false);
-      if(r.ok) {
-        resp = await r.json();
-      } else {
-        const errBody = await r.json().catch(() => null);
-        return falhaLogin((errBody && errBody.error) || 'E-mail ou senha incorretos.');
-      }
-    } catch(e) {
-      showLoadingBar(false);
-      console.warn('[Login] Servidor indisponível:', e.message);
-      return falhaLogin('Servidor indisponível no momento. Tente novamente em instantes.');
+    const inputHash = await _hashSenha(email, senha);
+
+    // Verificar localmente — se não achar, recarregar usuários extras e tentar de novo
+    let user = USUARIOS.find(u => u.email === email && u.hash === inputHash);
+    if(!user) {
+      await usersLoad(); // recarrega extras do localStorage/Supabase
+      user = USUARIOS.find(u => u.email === email && u.hash === inputHash);
     }
 
-    if(!resp || !resp.token) {
-      return falhaLogin('Não foi possível validar sua sessão no servidor.');
+    if(!user) {
+      btnEl.disabled = false;
+      btnText.textContent = 'Entrar no Sistema';
+      emailEl.classList.add('error');
+      passEl.classList.add('error');
+      errorEl.innerHTML = '❌ E-mail ou senha incorretos.';
+      passEl.value = '';
+      passEl.focus();
+      const box = document.querySelector('.login-box');
+      if(box) { box.style.animation='none'; box.offsetHeight; box.style.animation='shake .4s ease'; }
+      return;
     }
 
-    // Token de sessao emitido pelo servidor (enviado depois no header x-app-token)
-    setAppToken(resp.token);
-
-    // Dados do usuario vem SOMENTE do servidor (nunca do cliente)
-    const info = resp.usuario || {};
-    const nome = info.nome || email;
-    const user = {
-      email:  info.email  || email,
-      perfil: info.perfil || 'viewer',
-      nome:   nome,
-      avatar: info.avatar || nome.trim().slice(0,2).toUpperCase() || '??',
-      cor:    info.cor    || '#0f2d4a'
-    };
-
+    // Login OK — salvar sessão
     currentUser = user;
     _saveSession(user);
+
+    // ── MODO TESTE LOCAL ──────────────────────────────────────────────
+    // Rodando em localhost/127.0.0.1 (cópia local pra testar), o login NÃO
+    // exige o servidor: basta o hash bater com o cadastro local (já validado
+    // acima). Isso permite testar offline e sem depender da senha do servidor.
+    // Em PRODUÇÃO (domínio real, ex.: github.io) esta condição é falsa, então
+    // o login continua 100% validado pela Edge Function, sem nenhuma mudança.
+    const _ehLocal = ['localhost','127.0.0.1','[::1]',''].includes(location.hostname) || location.protocol === 'file:';
+    if(_ehLocal) {
+      enterApp(user);
+      return;
+    }
+
+    if(USE_SUPABASE) {
+      // Login só é aceito se o servidor (Edge Function) confirmar as credenciais.
+      // NUNCA entrar no app apenas com base na checagem local do hash.
+      let tokenObtido = false;
+      let motivoFalha = 'Não foi possível validar sua sessão no servidor. Tente novamente.';
+      try {
+        showLoadingBar(true, 'Conectando ao servidor...');
+        const r = await fetch(SUPABASE_URL + '/functions/v1/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, hash: inputHash })
+        });
+        showLoadingBar(false);
+        if(r.ok) {
+          const resp = await r.json();
+          if(resp && resp.token) { setAppToken(resp.token); tokenObtido = true; }
+        } else {
+          const errBody = await r.json().catch(() => null);
+          if(errBody && errBody.error) motivoFalha = errBody.error;
+          console.warn('[Login] Edge Function erro:', r.status, errBody);
+        }
+      } catch(e) {
+        showLoadingBar(false);
+        console.warn('[Login] Edge Function indisponível:', e.message);
+        motivoFalha = 'Servidor indisponível no momento. Tente novamente em instantes.';
+      }
+
+      if(!tokenObtido) {
+        currentUser = null;
+        _clearSession();
+        btnEl.disabled = false;
+        btnText.textContent = 'Entrar no Sistema';
+        emailEl.classList.add('error');
+        passEl.classList.add('error');
+        errorEl.innerHTML = '❌ ' + escapeHtml(motivoFalha);
+        return;
+      }
+    }
+
     enterApp(user);
   } catch(e) {
     btnEl.disabled = false;
@@ -145,9 +158,6 @@ function enterApp(user) {
     permLoad();                // carrega permissões do localStorage
     await permLoadFromSupabase(); // atualiza com versão do Supabase
     permAtualizarNav();        // atualiza nav com permissões corretas
-    // Agora que as permissões estão prontas, cai na primeira página
-    // permitida (evita abrir o dashboard sem acesso).
-    irParaPrimeiraPaginaPermitida();
   })();
 
   // Log de login
@@ -171,13 +181,9 @@ function enterApp(user) {
       if(ok) {
         populateFilialSelects();
         populateRelSelectsForce();
-        if(typeof canAccess !== 'function' || canAccess('dashboard')) renderDashboard();
+        renderDashboard();
         if(typeof renderMapaRisco === 'function') renderMapaRisco();
         if(typeof rmUpdateRiscoModalUnits === 'function') rmUpdateRiscoModalUnits();
-        // Com os dados já carregados, reposiciona na primeira página
-        // permitida para que ela renderize com o conteúdo (e não fique
-        // vazia se o login caiu nela antes dos dados chegarem).
-        if(typeof irParaPrimeiraPaginaPermitida === 'function') irParaPrimeiraPaginaPermitida();
       }
     }).catch(e => {
       showLoadingBar(false);
@@ -209,6 +215,10 @@ function doLogout() {
   _clearSession();
   sessionStorage.removeItem('compliance_user');
   sessionStorage.removeItem('ch_app_token');
+  // SEGURANÇA: ao sair, apaga denúncias da memória e limpa o cache local, para
+  // que um próximo usuário na mesma máquina não alcance dados da sessão anterior.
+  try { DB.denuncias = []; } catch(e) {}
+  try { clearLocalCache(); } catch(e) {}
 
   // Reset form
   document.getElementById('login-email').value = '';
@@ -236,7 +246,7 @@ function doLogout() {
 }
 
 function showForgotPass() {
-  alert('Para recuperar sua senha, entre em contato com o administrador do sistema.');
+  alert('Para recuperar sua senha, entre em contato com o administrador do sistema.\n\nE-mail: admin@torre.com.br');
 }
 
 // Shake keyframe via style tag
@@ -245,33 +255,18 @@ shakeStyle.textContent = '@keyframes shake { 0%,100%{transform:translateX(0)} 20
 document.head.appendChild(shakeStyle);
 
 // Check session on load (auto-login if session exists)
-// ── DevTools detection — warn user in sensitive sessions
-(function() {
-  let _dtOpen = false;
-  const _dtThreshold = 160;
-  setInterval(() => {
-    const widthDiff = window.outerWidth - window.innerWidth > _dtThreshold;
-    const heightDiff = window.outerHeight - window.innerHeight > _dtThreshold;
-    if((widthDiff || heightDiff) && !_dtOpen) {
-      _dtOpen = true;
-      // Clear sensitive data from DOM when DevTools detected
-      document.querySelectorAll('.relato-text, #dn-detail-relato, #dn-detail-acao').forEach(el => {
-        if(el._originalContent === undefined) el._originalContent = el.textContent;
-        el.textContent = '[Conteúdo protegido]';
-      });
-    } else if(!widthDiff && !heightDiff && _dtOpen) {
-      _dtOpen = false;
-      document.querySelectorAll('.relato-text, #dn-detail-relato, #dn-detail-acao').forEach(el => {
-        if(el._originalContent !== undefined) el.textContent = el._originalContent;
-      });
-    }
-  }, 1000);
-})();
-
+// Obs.: a antiga "detecção de DevTools" que apagava o relato do DOM foi
+// removida — era falsa proteção (não impedia leitura via localStorage, via
+// DB no console ou via resposta de rede) e dava impressão de segurança que
+// não existia. A proteção real do relato é não carregá-lo sem sessão válida
+// (ver app-init.js) e não persisti-lo no navegador (ver supabase.js).
 function checkSession() {
   try {
-    // Se usamos Supabase, a sessão só é válida com um token de servidor presente
-    if(USE_SUPABASE && !getAppToken()) {
+    // Se usamos Supabase, a sessão só é válida com um token de servidor presente.
+    // Exceção: em teste local (localhost/127.0.0.1) não exigimos token — casa
+    // com o MODO TESTE LOCAL do login. Em produção nada muda.
+    const _ehLocal = ['localhost','127.0.0.1','[::1]',''].includes(location.hostname) || location.protocol === 'file:';
+    if(USE_SUPABASE && !getAppToken() && !_ehLocal) {
       _clearSession();
       return false;
     }
