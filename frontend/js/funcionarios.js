@@ -363,28 +363,59 @@ function funcHtmlTabela(lista, aba){
   <div style="margin-top:8px;font-size:.78rem;color:var(--text-muted)">Exibindo ${lista.length} funcionário(s) — clique em um nome para ver todos os dados.</div>`;
 }
 
-// ── Detalhe do funcionário (abre ao clicar no nome) — mostra TODOS os campos ──
+// ── Ficha do funcionário: tipos de registro (advertência/reciclagem/suspensão) ──
+const FUNC_OC_TIPOS = {
+  advertencia: { lbl:'Advertência', cor:'#f59e0b', ic:'⚠️' },
+  reciclagem:  { lbl:'Reciclagem',  cor:'#3b82f6', ic:'🔄' },
+  suspensao:   { lbl:'Suspensão',   cor:'#ef4444', ic:'⛔' },
+};
+let _funcOcTipo = null; // tipo selecionado no formulário de novo registro
+
+// ── Detalhe do funcionário (abre ao clicar no nome) — dados + ficha de registros ──
 function funcAbrirDetalhe(matricula){
   const f = DB_FUNC.find(x=>String(x.matricula)===String(matricula));
   if(!f) return;
+  // fecha qualquer detalhe já aberto (permite re-renderizar após add/excluir)
+  document.querySelectorAll('.func-detalhe-overlay').forEach(o=>o.remove());
+  _funcOcTipo = null;
   const linha = (lbl,val,destaque)=>`<div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #f1f5f9">
     <span style="font-size:.8rem;color:var(--text-muted)">${lbl}</span>
     <span style="font-size:.86rem;font-weight:${destaque?'700':'500'};text-align:right;${destaque?'color:var(--primary)':''}">${val||'—'}</span></div>`;
   const isAtivo = f.status==='ativo';
+  const mat = escapeHtml(f.matricula);
+
+  // Lista de registros (mais recentes primeiro)
+  const ocs = (f.ocorrencias||[]).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+  const ocsHtml = ocs.length ? ocs.map(o=>{
+    const ti = FUNC_OC_TIPOS[o.tipo] || { lbl:o.tipo, cor:'#64748b', ic:'📌' };
+    return `<div style="border:1px solid #e2e8f0;border-left:3px solid ${ti.cor};border-radius:8px;padding:8px 10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-weight:700;font-size:.82rem;color:${ti.cor}">${ti.ic} ${ti.lbl}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.72rem;color:#94a3b8">${escapeHtml(String(o.data||'').split('T')[0])}${o.autor?' · '+escapeHtml(o.autor):''}</span>
+          <button onclick="funcDelOcorrencia('${mat}','${escapeHtml(o.id)}')" title="Excluir registro" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.95rem;line-height:1">🗑️</button>
+        </div>
+      </div>
+      <div style="font-size:.82rem;color:#334155;margin-top:4px;white-space:pre-wrap">${escapeHtml(o.motivo)}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:.8rem;color:#94a3b8;padding:4px 0 8px">Nenhum registro na ficha ainda.</div>';
+
+  const btnTipo = (tipo)=>{ const ti=FUNC_OC_TIPOS[tipo]; return `<button type="button" class="func-oc-btn" onclick="funcSelOcTipo(this,'${tipo}')" style="flex:1;min-width:100px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:8px;padding:8px 6px;cursor:pointer;font-size:.8rem;font-weight:600">${ti.ic} ${ti.lbl}</button>`; };
+
   const overlay = document.createElement('div');
   overlay.className = 'func-detalhe-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease';
   overlay.innerHTML = `
     <div style="background:var(--card);border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 70px rgba(0,0,0,.35)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;background:linear-gradient(135deg,var(--primary),var(--primary-light,#1e3a5f));border-radius:16px 16px 0 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;background:linear-gradient(135deg,var(--primary),var(--primary-light,#1e3a5f));border-radius:16px 16px 0 0;position:sticky;top:0">
         <div style="min-width:0">
           <div style="color:#fff;font-weight:800;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(f.nome)}</div>
-          <div style="color:rgba(255,255,255,.8);font-size:.78rem;margin-top:2px">Matrícula ${escapeHtml(f.matricula)} · <span style="background:${isAtivo?'rgba(34,197,94,.9)':'rgba(239,68,68,.9)'};padding:1px 8px;border-radius:20px;font-weight:700">${isAtivo?'ATIVO':'DESLIGADO'}</span></div>
+          <div style="color:rgba(255,255,255,.8);font-size:.78rem;margin-top:2px">Matrícula ${mat} · <span style="background:${isAtivo?'rgba(34,197,94,.9)':'rgba(239,68,68,.9)'};padding:1px 8px;border-radius:20px;font-weight:700">${isAtivo?'ATIVO':'DESLIGADO'}</span></div>
         </div>
         <button onclick="this.closest('.func-detalhe-overlay').remove()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;flex-shrink:0;font-size:1rem">✕</button>
       </div>
       <div style="padding:14px 22px 22px">
-        ${linha('Matrícula', `<span style="font-family:'DM Mono',monospace">${escapeHtml(f.matricula)}</span>`, true)}
+        ${linha('Matrícula', `<span style="font-family:'DM Mono',monospace">${mat}</span>`, true)}
         ${linha('Nome', escapeHtml(f.nome), true)}
         ${linha('Filial', escapeHtml(funcFilialLabel(f.filial)), true)}
         ${linha('Função', escapeHtml(f.cargo), true)}
@@ -392,10 +423,66 @@ function funcAbrirDetalhe(matricula){
         ${linha('Seção', escapeHtml(f.secao))}
         ${linha('Situação', escapeHtml(f.situacao))}
         ${f.importadoEm ? linha('Importado em', escapeHtml((f.importadoEm||'').split('T')[0])) : ''}
+
+        <div style="margin-top:16px">
+          <div style="font-weight:800;font-size:.9rem;color:var(--primary);margin-bottom:8px">📋 Ficha de Registros</div>
+          ${ocsHtml}
+        </div>
+
+        <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
+          <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">➕ Novo registro</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            ${btnTipo('advertencia')}${btnTipo('reciclagem')}${btnTipo('suspensao')}
+          </div>
+          <textarea id="func-oc-motivo" placeholder="Escreva o motivo do registro..." style="width:100%;min-height:72px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          <button type="button" class="btn btn-accent" style="margin-top:10px;width:100%;justify-content:center" onclick="funcAddOcorrencia('${mat}')">✅ Confirmar registro</button>
+        </div>
       </div>
     </div>`;
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+}
+
+// Seleciona o tipo do novo registro (destaca o botão escolhido).
+function funcSelOcTipo(el, tipo){
+  _funcOcTipo = tipo;
+  const ti = FUNC_OC_TIPOS[tipo];
+  el.parentElement.querySelectorAll('.func-oc-btn').forEach(b=>{ b.style.background='#f1f5f9'; b.style.color='#334155'; b.style.borderColor='#cbd5e1'; });
+  if(ti){ el.style.background=ti.cor; el.style.color='#fff'; el.style.borderColor=ti.cor; }
+}
+
+// Adiciona um registro à ficha do funcionário e persiste.
+function funcAddOcorrencia(matricula){
+  const f = DB_FUNC.find(x=>String(x.matricula)===String(matricula));
+  if(!f) return;
+  if(!_funcOcTipo){ alert('Selecione o tipo do registro: Advertência, Reciclagem ou Suspensão.'); return; }
+  const motivo = (document.getElementById('func-oc-motivo')||{value:''}).value.trim();
+  if(!motivo){ alert('Escreva o motivo do registro.'); return; }
+  if(!Array.isArray(f.ocorrencias)) f.ocorrencias = [];
+  const ti = FUNC_OC_TIPOS[_funcOcTipo] || { lbl:_funcOcTipo };
+  f.ocorrencias.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    tipo: _funcOcTipo, motivo,
+    data: new Date().toISOString(),
+    autor: (typeof currentUser!=='undefined' && currentUser) ? (currentUser.nome||currentUser.email||'') : ''
+  });
+  funcSaveLocal();
+  if(typeof auditLog==='function') auditLog('update','funcionarios',`Registro de ${ti.lbl} adicionado — ${f.nome} (mat. ${f.matricula})`,{tipo:_funcOcTipo});
+  funcSalvarSupabase();
+  _funcOcTipo = null;
+  funcAbrirDetalhe(matricula); // reabre já atualizado
+}
+
+// Exclui um registro da ficha.
+function funcDelOcorrencia(matricula, ocId){
+  const f = DB_FUNC.find(x=>String(x.matricula)===String(matricula));
+  if(!f || !Array.isArray(f.ocorrencias)) return;
+  if(!confirm('Excluir este registro da ficha do funcionário? Essa ação não pode ser desfeita.')) return;
+  f.ocorrencias = f.ocorrencias.filter(o=>String(o.id)!==String(ocId));
+  funcSaveLocal();
+  if(typeof auditLog==='function') auditLog('delete','funcionarios',`Registro removido da ficha — ${f.nome} (mat. ${f.matricula})`,{});
+  funcSalvarSupabase();
+  funcAbrirDetalhe(matricula);
 }
 
 function switchFuncTab(tab, el){
