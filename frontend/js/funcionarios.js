@@ -368,6 +368,7 @@ const FUNC_OC_TIPOS = {
   advertencia: { lbl:'Advertência', cor:'#f59e0b', ic:'⚠️' },
   reciclagem:  { lbl:'Reciclagem',  cor:'#3b82f6', ic:'🔄' },
   suspensao:   { lbl:'Suspensão',   cor:'#ef4444', ic:'⛔' },
+  observacao:  { lbl:'Observação',  cor:'#64748b', ic:'📝' },
 };
 let _funcOcTipo = null; // tipo selecionado no formulário de novo registro
 
@@ -432,9 +433,9 @@ function funcAbrirDetalhe(matricula){
         <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
           <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">➕ Novo registro</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-            ${btnTipo('advertencia')}${btnTipo('reciclagem')}${btnTipo('suspensao')}
+            ${btnTipo('advertencia')}${btnTipo('reciclagem')}${btnTipo('suspensao')}${btnTipo('observacao')}
           </div>
-          <textarea id="func-oc-motivo" placeholder="Escreva o motivo do registro..." style="width:100%;min-height:72px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          <textarea id="func-oc-motivo" placeholder="Escreva o motivo / a observação do registro..." style="width:100%;min-height:72px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
           <button type="button" class="btn btn-accent" style="margin-top:10px;width:100%;justify-content:center" onclick="funcAddOcorrencia('${mat}')">✅ Confirmar registro</button>
         </div>
       </div>
@@ -455,9 +456,9 @@ function funcSelOcTipo(el, tipo){
 function funcAddOcorrencia(matricula){
   const f = DB_FUNC.find(x=>String(x.matricula)===String(matricula));
   if(!f) return;
-  if(!_funcOcTipo){ alert('Selecione o tipo do registro: Advertência, Reciclagem ou Suspensão.'); return; }
+  if(!_funcOcTipo){ alert('Selecione o tipo do registro: Advertência, Reciclagem, Suspensão ou Observação.'); return; }
   const motivo = (document.getElementById('func-oc-motivo')||{value:''}).value.trim();
-  if(!motivo){ alert('Escreva o motivo do registro.'); return; }
+  if(!motivo){ alert('Escreva o motivo / a observação do registro.'); return; }
   if(!Array.isArray(f.ocorrencias)) f.ocorrencias = [];
   const ti = FUNC_OC_TIPOS[_funcOcTipo] || { lbl:_funcOcTipo };
   f.ocorrencias.push({
