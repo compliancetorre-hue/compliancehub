@@ -473,28 +473,25 @@ async function usersLoad() {
   // Limpar array — mantém só admin — evita re-adição de excluídos
   while(USUARIOS.length > 1) USUARIOS.pop();
 
-  // Buscar via REST direto (anon key) — independente do Edge Function
-  if(USE_SUPABASE) {
+  // Buscar pela Edge Function (chave de serviço) — a REST direta com anon key
+  // é bloqueada pelo lockdown de RLS. A Edge Function exige token; no login
+  // (pré-autenticação) ainda não há token, então nesse caso caímos no cache
+  // local abaixo, e a lista real é recarregada em enterApp (já com token).
+  if(USE_SUPABASE && typeof getAppToken === 'function' && getAppToken()) {
     try {
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/settings?key=eq.usuarios_extras&select=value`,
-        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON } }
-      );
-      if(r.ok) {
-        const rows = await r.json();
-        if(rows && rows[0] && rows[0].value) {
-          const extras = JSON.parse(rows[0].value);
-          if(Array.isArray(extras)) {
-            extras.forEach(u => {
-              if(u.email !== ADMIN_EMAIL) USUARIOS.push(u);
-            });
-            localStorage.setItem(USERS_KEY, JSON.stringify(extras));
-            console.log('[usersLoad] OK:', extras.length, 'usuario(s)');
-            return;
-          }
+      const rows = await _edgeGet('settings?key=usuarios_extras');
+      if(rows && rows[0] && rows[0].value) {
+        const extras = JSON.parse(rows[0].value);
+        if(Array.isArray(extras)) {
+          extras.forEach(u => {
+            if(u.email !== ADMIN_EMAIL) USUARIOS.push(u);
+          });
+          localStorage.setItem(USERS_KEY, JSON.stringify(extras));
+          console.log('[usersLoad] OK:', extras.length, 'usuario(s)');
+          return;
         }
       }
-    } catch(e) { console.warn('[usersLoad] REST erro:', e.message); }
+    } catch(e) { console.warn('[usersLoad] Edge erro:', e.message); }
   }
 
   // Fallback: localStorage
@@ -512,22 +509,13 @@ async function usersSave() {
   const extras = USUARIOS.filter(u => u.email !== ADMIN_EMAIL);
   // 1. Salvar local imediatamente
   localStorage.setItem(USERS_KEY, JSON.stringify(extras));
-  // 2. Salvar no Supabase via REST direto (anon key — sem depender de token)
+  // 2. Salvar no Supabase pela Edge Function (chave de serviço) — a REST direta
+  // com anon key é bloqueada pelo lockdown de RLS na tabela settings.
   if(USE_SUPABASE) {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON,
-          'Authorization': 'Bearer ' + SUPABASE_ANON,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=minimal'
-        },
-        body: JSON.stringify({ key: 'usuarios_extras', value: JSON.stringify(extras) })
-      });
-      if(r.ok) console.log('[usersSave] Supabase OK —', extras.length, 'usuario(s)');
-      else console.warn('[usersSave] Supabase status:', r.status);
-    } catch(e) { console.warn('[usersSave] REST erro:', e.message); }
+      await sbUpsert('settings', { key: 'usuarios_extras', value: JSON.stringify(extras) });
+      console.log('[usersSave] Supabase OK —', extras.length, 'usuario(s)');
+    } catch(e) { console.warn('[usersSave] erro:', e.message); }
 
     // 3. Sincronizar com a tabela real "usuarios" — é ela que a Edge
     // Function consulta na rota /login. Antes disso, um usuário criado
@@ -781,20 +769,12 @@ function permLoad() {
 
 async function permSave() {
   localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
+  // Passa pela Edge Function (chave de serviço), não pela REST direta com a
+  // anon key — que o lockdown de RLS bloqueia na tabela settings.
   if(USE_SUPABASE) {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON,
-          'Authorization': 'Bearer ' + SUPABASE_ANON,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=minimal'
-        },
-        body: JSON.stringify({ key: 'permissoes', value: JSON.stringify(PERMISSOES) })
-      });
-      if(r.ok) console.log('[permSave] OK');
-      else console.warn('[permSave] status:', r.status);
+      await sbUpsert('settings', { key: 'permissoes', value: JSON.stringify(PERMISSOES) });
+      console.log('[permSave] OK');
     } catch(e) { console.warn('[permSave] erro:', e.message); }
   }
 }
@@ -802,18 +782,12 @@ async function permSave() {
 async function permLoadFromSupabase() {
   if(!USE_SUPABASE) return;
   try {
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/settings?key=eq.permissoes&select=value`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON } }
-    );
-    if(r.ok) {
-      const rows = await r.json();
-      if(rows && rows[0] && rows[0].value) {
-        const sbPerms = JSON.parse(rows[0].value);
-        PERMISSOES = { ...PERMISSOES, ...sbPerms };
-        localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
-        console.log('[permLoad] OK');
-      }
+    const rows = await _edgeGet('settings?key=permissoes');
+    if(rows && rows[0] && rows[0].value) {
+      const sbPerms = JSON.parse(rows[0].value);
+      PERMISSOES = { ...PERMISSOES, ...sbPerms };
+      localStorage.setItem(PERM_KEY, JSON.stringify(PERMISSOES));
+      console.log('[permLoad] OK');
     }
   } catch(e) { console.warn('[permLoad] erro:', e.message); }
 }
