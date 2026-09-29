@@ -303,10 +303,33 @@ function renderFuncionarios(){
 
   if(_funcTab==='importar'){ content.innerHTML = nuvemAviso + funcHtmlImportar(); return; }
 
+  funcPopularFiltroFilial();
   const lista = _funcTab==='ativos' ? ativos : deslig;
   const q = _fNorm((document.getElementById('func-filtro')||{value:''}).value);
-  const filtrada = q ? lista.filter(f => _fNorm(f.nome).includes(q) || _fNorm(f.matricula).includes(q) || _fNorm(funcFilialLabel(f.filial)).includes(q) || _fNorm(f.cargo).includes(q)) : lista;
+  const filialSel = (document.getElementById('func-filtro-filial')||{value:''}).value;
+  const filtrada = lista.filter(f =>
+    (!filialSel || String(f.filial)===String(filialSel)) &&
+    (!q || _fNorm(f.nome).includes(q) || _fNorm(f.matricula).includes(q) || _fNorm(funcFilialLabel(f.filial)).includes(q) || _fNorm(f.cargo).includes(q))
+  );
   content.innerHTML = nuvemAviso + funcHtmlTabela(filtrada, _funcTab);
+}
+
+// Popula o dropdown de filtro por filial com as filiais presentes nos dados.
+// Só reconstrói quando o conjunto de filiais muda, pra não atrapalhar quem
+// está com o menu aberto ou digitando na busca ao mesmo tempo.
+function funcPopularFiltroFilial(){
+  const sel = document.getElementById('func-filtro-filial');
+  if(!sel) return;
+  const cods = [...new Set(DB_FUNC.map(f=>f.filial).filter(Boolean).map(String))].sort((a,b)=>{
+    const na=parseInt(a,10), nb=parseInt(b,10);
+    if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+    return a.localeCompare(b);
+  });
+  if(sel.options.length === cods.length+1) return; // já está populado com o mesmo conjunto
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Todas as filiais</option>' +
+    cods.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(funcFilialLabel(c))}</option>`).join('');
+  if([...sel.options].some(o=>o.value===atual)) sel.value = atual;
 }
 
 function funcHtmlImportar(){
