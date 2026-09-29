@@ -645,7 +645,10 @@
           </div>
 
           <div class="filter-bar" id="func-filtro-bar">
-            <input type="text" id="func-filtro" placeholder="🔍 Buscar por nome, matrícula, filial ou função..." oninput="renderFuncionarios()"/>
+            <input type="text" id="func-filtro" placeholder="🔍 Buscar por nome, matrícula ou função..." oninput="renderFuncionarios()"/>
+            <select id="func-filtro-filial" onchange="renderFuncionarios()">
+              <option value="">Todas as filiais</option>
+            </select>
           </div>
 
           <div id="func-content"></div>
