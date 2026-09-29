@@ -20,18 +20,6 @@ const FUNC_KEY = 'ch_funcionarios_v1';
 // ── Normalização de texto (para casar cabeçalhos com/sem acento e caixa) ──
 function _fNorm(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
 
-// ── Mapeadores linha do Supabase (snake_case) ↔ objeto JS (camelCase) ──
-function funcToRow(f){
-  return { matricula:f.matricula, nome:f.nome, filial:f.filial||'',
-    cargo:f.cargo||'', secao:f.secao||'', admissao:f.admissao||'', situacao:f.situacao||'',
-    status:f.status||'ativo', importado_em:f.importadoEm||null, desligado_em:f.desligadoEm||null };
-}
-function rowToFunc(r){
-  return { matricula:String(r.matricula), nome:r.nome||'', filial:r.filial||'',
-    cargo:r.cargo||'', secao:r.secao||'', admissao:r.admissao||'', situacao:r.situacao||'',
-    status:r.status||'ativo', importadoEm:r.importado_em||'', desligadoEm:r.desligado_em||'' };
-}
-
 // ── Resolve o nome legível da filial a partir do código (usa o cadastro de
 // Filiais do app quando houver correspondência; senão "Filial ‹código›") ──
 function funcFilialLabel(cod){
@@ -58,20 +46,25 @@ function funcLoadLocal(){
   try { const raw = localStorage.getItem(FUNC_KEY); if(raw){ const a = JSON.parse(raw); if(Array.isArray(a)) DB_FUNC = a; } } catch(e){}
 }
 
-// Busca do Supabase (lazy — só quando o módulo abre, nunca no login, pois são
-// milhares de linhas). Cai pro cache local se a tabela não existir/offline.
+// Busca do Supabase (lazy — só quando o módulo abre, nunca no login).
+// A lista INTEIRA fica num único registro (id='main') da tabela
+// funcionarios_lista, no campo jsonb "lista" — mesmo padrão do Flow Board
+// (fbboards). Isso evita o teto de ~1.000 linhas que a leitura/gravação
+// linha-a-linha tinha (por isso, ao dar F5, só voltavam ~1.000). Cai pro
+// cache local se a tabela não existir/offline.
 async function funcCarregar(force){
   if(_funcCarregado && !force) return;
   funcLoadLocal();
   if(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && typeof _edgeGet === 'function'){
     try {
-      const rows = await _edgeGet('funcionarios?order=matricula');
-      if(Array.isArray(rows) && rows.length){
-        DB_FUNC = rows.map(rowToFunc);
+      const rows = await _edgeGet('funcionarios_lista?id=main');
+      const lista = (Array.isArray(rows) && rows[0] && Array.isArray(rows[0].lista)) ? rows[0].lista : null;
+      if(lista && lista.length){
+        DB_FUNC = lista;
         funcSaveLocal();
         _funcNuvem = true;
       } else if(Array.isArray(rows)){
-        // Tabela existe mas está vazia — mantém o que houver no cache local.
+        // Tabela existe mas sem registro ainda — mantém o cache local.
         _funcNuvem = true;
       }
     } catch(e){
@@ -84,22 +77,17 @@ async function funcCarregar(force){
 }
 let _funcNuvem = false;
 
-// Salva (upsert) só as linhas que mudaram, em lotes, pela Edge Function.
-async function funcSalvarSupabase(mudados){
+// Salva a lista INTEIRA como um único registro (id='main'). Uma escrita só,
+// sem lotes — some tanto o teto de leitura quanto o de gravação por linha.
+async function funcSalvarSupabase(){
   if(!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE) || typeof sbUpsert !== 'function') return {ok:0, erro:'sem supabase'};
-  if(!mudados.length) return {ok:0};
-  let ok=0, falhou=0;
-  for(let i=0;i<mudados.length;i+=500){
-    const lote = mudados.slice(i, i+500).map(funcToRow);
-    try { await sbUpsert('funcionarios', lote); ok += lote.length; }
-    catch(e){
-      // Se o lote inteiro falhar (ex.: tabela não existe), nem tenta um a um.
-      console.warn('[funcionarios] lote falhou:', e.message);
-      falhou += lote.length;
-      return {ok, erro:e.message};
-    }
+  try {
+    await sbUpsert('funcionarios_lista', { id:'main', lista: DB_FUNC, updated_at: new Date().toISOString() });
+    return {ok: DB_FUNC.length};
+  } catch(e){
+    console.warn('[funcionarios] salvar na nuvem falhou:', e.message);
+    return {ok:0, erro:e.message};
   }
-  return {ok, falhou};
 }
 
 // ══════════════════════════════════════════
@@ -203,17 +191,17 @@ async function funcAplicarImportacao(){
       {novos:diff.novos.length, desligados:diff.desligados.length, ignorados:_funcImportPreview.ignoradasDup});
   }
 
-  // Persiste na nuvem (best-effort). Deduplica por matrícula antes de enviar.
-  const mudadosUnicos = Array.from(new Map(mudados.map(m=>[m.matricula,m])).values());
-  const res = await funcSalvarSupabase(mudadosUnicos);
+  // Persiste na nuvem (best-effort) — grava a lista inteira num registro só.
+  const dupCount = _funcImportPreview ? _funcImportPreview.ignoradasDup : _ultimaDupCount;
+  const res = await funcSalvarSupabase();
 
   _funcImportPreview = null;
   _funcTab = 'ativos';
   renderFuncionarios();
   const msgNuvem = res.erro
-    ? '\n\n⚠️ Salvo localmente, mas a sincronização na nuvem falhou (a tabela "funcionarios" pode não existir ainda). Veja o passo do CREATE TABLE.'
+    ? '\n\n⚠️ Salvo localmente, mas a sincronização na nuvem falhou (a tabela "funcionarios_lista" pode não existir ainda). Veja o passo do CREATE TABLE.'
     : (res.ok ? `\n\n☁️ ${res.ok} registros sincronizados na nuvem.` : '');
-  alert(`✅ Importação concluída!\n\n• ${diff.novos.length} novos funcionários (ativos)\n• ${diff.reativados.length} reativados\n• ${diff.desligados.length} desligados\n• ${diff.mantidos.length} mantidos\n• ${_funcImportPreview?_funcImportPreview.ignoradasDup:_ultimaDupCount} linhas duplicadas ignoradas`+msgNuvem);
+  alert(`✅ Importação concluída!\n\n• ${diff.novos.length} novos funcionários (ativos)\n• ${diff.reativados.length} reativados\n• ${diff.desligados.length} desligados\n• ${diff.mantidos.length} mantidos\n• ${dupCount} linhas duplicadas ignoradas`+msgNuvem);
 }
 let _ultimaDupCount = 0;
 
@@ -298,7 +286,7 @@ function renderFuncionarios(){
   const content = document.getElementById('func-content');
   if(!content) return;
   const nuvemAviso = !_funcNuvem
-    ? '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.8rem;color:#92400e">☁️ Sincronização na nuvem pendente — os dados estão salvos só neste navegador. Rode o CREATE TABLE da tabela <code>funcionarios</code> pra sincronizar entre dispositivos.</div>'
+    ? '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.8rem;color:#92400e">☁️ Sincronização na nuvem pendente — os dados estão salvos só neste navegador. Rode o CREATE TABLE da tabela <code>funcionarios_lista</code> pra sincronizar entre dispositivos.</div>'
     : '';
 
   if(_funcTab==='importar'){ content.innerHTML = nuvemAviso + funcHtmlImportar(); return; }
