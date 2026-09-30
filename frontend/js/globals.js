@@ -111,6 +111,7 @@ let DB = {
   planos: [],
   rmPlanos: [],  // carregado do Supabase após login
   denuncias: [],  // carregado do Supabase após login
+  denunciasAls: [], // Canal de Denúncia ALS — tabela separada, carregado do Supabase após login
   fbBoards: {
     'planos-acao': {
       name:'Planos de Ação', color:'#3b82f6',
@@ -157,7 +158,7 @@ let DB = {
       ]
     }
   },
-  _ids: { filial:17, risco:20, ctrl:6, plano:6, dn:200, fbCard:100, rmPlano:17, agenda:1 },
+  _ids: { filial:17, risco:20, ctrl:6, plano:6, dn:200, dnAls:1, fbCard:100, rmPlano:17, agenda:1 },
   agenda: []
 };
 
@@ -176,7 +177,7 @@ const PAGE_TITLES = {
   dashboard:'Dashboard', filiais:'Filiais e Setores', 'mapa-risco':'Mapeamento de Risco',
   controles:'Controles Internos', 'planos-acao':'Planos de Ação',
   funcionarios:'Funcionários — Ativos e Desligados',
-  'canal-denuncia':'Canal de Denúncia', flowboard:'Flow Board',
+  'canal-denuncia':'Canal de Denúncia', 'canal-denuncia-als':'Canal de Denúncia ALS', flowboard:'Flow Board',
   'due-diligence':'Due Diligence — KYC & Mídias Negativas',
     'due-diligence2':'Due Diligence 2 – KYC & Mídias Negativas'
 };
@@ -198,6 +199,7 @@ function _gotoImpl(page, el) {
   if(page === 'controles') renderControles();
   if(page === 'planos-acao') renderPlanos();
   if(page === 'canal-denuncia') renderDenuncias();
+  if(page === 'canal-denuncia-als') renderDenunciasAls();
   if(page === 'funcionarios') renderFuncionarios();
   if(page === 'flowboard') renderFlowboard();
   closeMobile();
