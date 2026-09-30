@@ -20,8 +20,8 @@
     @keyframes loginPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
     .login-left{flex:1;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;padding:60px 48px;}
     .login-brand-wrap{max-width:400px;}
-    .login-shield{width:72px;height:72px;background:var(--accent);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 36px rgba(0,196,154,.35);margin-bottom:32px;}
-    .login-shield svg{width:42px;height:42px;}
+    .login-shield{width:88px;height:88px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 36px rgba(0,0,0,.25);margin-bottom:32px;}
+    .login-shield img{width:58px;height:58px;object-fit:contain;}
     .login-brand-name{font-size:2.6rem;font-weight:800;color:#fff;margin:0 0 6px;letter-spacing:-.5px;line-height:1.1;}
     .login-brand-sub{font-size:.85rem;color:rgba(255,255,255,.5);margin:0 0 20px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;}
     .login-brand-desc{font-size:.95rem;color:rgba(255,255,255,.6);line-height:1.7;margin:0 0 36px;}
@@ -33,7 +33,7 @@
     .login-box{width:100%;background:#fff;border-radius:20px;padding:40px 36px 32px;box-shadow:0 20px 60px rgba(15,45,74,.12);}
     .login-box-header{display:flex;align-items:center;gap:14px;margin-bottom:28px;padding-bottom:24px;border-bottom:1.5px solid var(--border);}
     .login-box-icon{width:42px;height:42px;background:var(--primary);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-    .login-box-icon svg{width:25px;height:25px;}
+    .login-box-icon img{width:27px;height:27px;object-fit:contain;}
     .login-box-brand{font-size:.95rem;font-weight:800;color:var(--primary);}
     .login-box-sub{font-size:.68rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
     .login-headline{font-size:1.5rem;font-weight:800;color:var(--primary);margin:0 0 6px;letter-spacing:-.3px;}
@@ -71,7 +71,7 @@
   <div class="login-left">
     <div class="login-brand-wrap">
       <div class="login-shield">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v5c0 5.25 3.75 10.05 9 11.25C17.25 22.05 21 17.25 21 12V7L12 2z" fill="#fff" fill-opacity=".95"/><path d="M9 12l2 2 4-4" stroke="#00c49a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <img src="assets/img/logo-torre-icon-white.png" alt="Torre Supermercados">
       </div>
       <h1 class="login-brand-name">Compliance Hub</h1>
       <p class="login-brand-sub">Torre e Cia Supermercados</p>
@@ -87,7 +87,7 @@
     <div class="login-box">
       <div class="login-box-header">
         <div class="login-box-icon">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v5c0 5.25 3.75 10.05 9 11.25C17.25 22.05 21 17.25 21 12V7L12 2z" fill="#fff" fill-opacity=".9"/><path d="M9 12l2 2 4-4" stroke="#0f2d4a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <img src="assets/img/logo-torre-icon-white.png" alt="Torre Supermercados">
         </div>
         <div>
           <div class="login-box-brand">Compliance</div>
@@ -132,10 +132,7 @@
 <div id="sidebar">
   <div class="logo">
     <div class="logo-icon">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L3 7v5c0 5.25 3.75 10.05 9 11.25C17.25 22.05 21 17.25 21 12V7L12 2z" fill="#fff" fill-opacity=".9"/>
-        <path d="M9 12l2 2 4-4" stroke="#00c49a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <img src="assets/img/logo-torre-icon-white.png" alt="Torre Supermercados">
     </div>
     <div>
       <div class="brand" data-editable="brand-nome">Compliance Hub</div>
@@ -169,6 +166,9 @@
     <div class="nav-label" data-editable="secao:denuncias">Denúncias</div>
     <a onclick="goto('canal-denuncia',this)" data-page="canal-denuncia">
       <span class="icon">📢</span> <span data-editable="menu:canal-denuncia">Canal de Denúncia</span>
+    </a>
+    <a onclick="goto('canal-denuncia-als',this)" data-page="canal-denuncia-als">
+      <span class="icon">📣</span> <span data-editable="menu:canal-denuncia-als">Canal de Denúncia ALS</span>
     </a>
 
     <div class="nav-label" data-editable="secao:analise">Análise</div>
@@ -259,6 +259,12 @@
     <div style="display:flex;align-items:center;gap:12px">
       <button id="mobile-menu-btn" onclick="toggleMobile()">☰</button>
       <div class="page-title" id="topbar-title">Dashboard</div>
+    </div>
+    <div id="global-search-wrap">
+      <input id="global-search-input" type="text" placeholder="🔎 Buscar em denúncias, riscos, planos, controles, filiais, agenda..."
+        autocomplete="off" oninput="globalSearchInput(this.value)" onfocus="globalSearchInput(this.value)"
+        onkeydown="globalSearchKeydown(event)">
+      <div id="global-search-results"></div>
     </div>
     <div class="topbar-right">
       <div class="date-chip" id="date-chip"></div>
@@ -388,24 +394,19 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="section" style="margin-bottom:0">
           <div class="section-header">
-            <h2>⚠️ Riscos Críticos e Altos</h2>
-            <button class="btn btn-outline btn-sm" onclick="goto('controles', document.querySelector('[data-page=controles]'))">Ver todos</button>
+            <h2>📢 SLA de Denúncias</h2>
+            <button class="btn btn-outline btn-sm" onclick="_dashVerTodosSla()">Ver todos</button>
           </div>
-          <div class="section-body" style="padding:0">
-            <table>
-              <thead><tr>
-                <th>Risco</th><th>Unidade</th><th>Nível</th><th>Categoria</th>
-              </tr></thead>
-              <tbody id="dash-controles-urgentes"></tbody>
-            </table>
-            <div class="empty hidden" id="dash-empty-ctrl"><div class="ico">✅</div>Nenhum risco crítico ou alto.</div>
+          <div class="section-body">
+            <div id="dash-sla-denuncias"></div>
+            <div class="empty hidden" id="dash-empty-sla"><div class="ico">✅</div>Nenhuma denúncia com SLA crítico.</div>
           </div>
         </div>
 
         <div class="section" style="margin-bottom:0">
           <div class="section-header">
             <h2>📋 Ações com Prazo Próximo</h2>
-            <button class="btn btn-outline btn-sm" onclick="goto('planos-acao', document.querySelector('[data-page=planos-acao]'))">Ver todos</button>
+            <button class="btn btn-outline btn-sm" onclick="_dashVerTodosPlanos()">Ver todos</button>
           </div>
           <div class="section-body" style="padding:0">
             <table>
@@ -447,6 +448,7 @@
       <div class="section-header" style="margin-bottom:14px">
         <h2>🗺️ Mapeamento de Riscos</h2>
         <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn-ai-gem" id="btn-ai-risco" onclick="aiAnalisarRiscos()">🤖 Avaliar com IA</button>
           <button class="btn btn-outline btn-sm" onclick="rmToggleUnitsPanel()">⚙️ Unidades</button>
           <button class="btn btn-outline btn-sm" onclick="rmToggleImport()">📎 Importar Word</button>
           <button class="btn btn-accent btn-sm" onclick="rmNovoRisco()">+ Novo Risco</button>
@@ -606,52 +608,6 @@
               <tbody id="tb-planos"></tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════
-         FUNCIONÁRIOS
-    ══════════════════════════════════════════ -->
-    <div class="page" id="page-funcionarios">
-      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
-        <div class="stat-card highlight">
-          <div class="stat-icon" style="background:rgba(0,196,154,.2)">👥</div>
-          <div><div class="stat-num" id="func-kpi-ativos">0</div><div class="stat-label">Funcionários Ativos</div></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red">📤</div>
-          <div><div class="stat-num" id="func-kpi-deslig" style="color:var(--danger)">0</div><div class="stat-label">Desligados</div></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:#e0e7ff">🏢</div>
-          <div><div class="stat-num" id="func-kpi-filiais" style="color:var(--primary)">0</div><div class="stat-label">Filiais (ativos)</div></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon teal">📋</div>
-          <div><div class="stat-num" id="func-kpi-total">0</div><div class="stat-label">Total no cadastro</div></div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <h2>👥 Funcionários</h2>
-        </div>
-        <div class="section-body">
-          <div class="dn-pill-tabs">
-            <button class="dn-pill-tab active" data-func-tab="ativos" onclick="switchFuncTab('ativos',this)">👥 Ativos</button>
-            <button class="dn-pill-tab" data-func-tab="desligados" onclick="switchFuncTab('desligados',this)">📤 Desligados</button>
-            <button class="dn-pill-tab" data-func-tab="importar" onclick="switchFuncTab('importar',this)">📥 Importar Planilha</button>
-          </div>
-
-          <div class="filter-bar" id="func-filtro-bar">
-            <input type="text" id="func-filtro" placeholder="🔍 Buscar por nome, matrícula ou função..." oninput="renderFuncionarios()"/>
-            <select id="func-filtro-filial" onchange="renderFuncionarios()">
-              <option value="">Todas as filiais</option>
-            </select>
-          </div>
-
-          <div id="func-content"></div>
         </div>
       </div>
     </div>
@@ -822,6 +778,125 @@
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════
+         CANAL DE DENÚNCIA ALS (segundo canal, formulário
+         público via QR code — tabela e fluxo totalmente
+         separados do Canal de Denúncia acima)
+    ══════════════════════════════════════════ -->
+    <div class="page" id="page-canal-denuncia-als">
+
+      <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
+        <div class="stat-card highlight">
+          <div class="stat-icon" style="background:rgba(0,196,154,.2)">📣</div>
+          <div>
+            <div class="stat-num" id="dnals-total">0</div>
+            <div class="stat-label">Total ALS</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">📥</div>
+          <div>
+            <div class="stat-num" id="dnals-abertas" style="color:var(--info)">0</div>
+            <div class="stat-label">Abertas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">🔍</div>
+          <div>
+            <div class="stat-num" id="dnals-analise" style="color:var(--warn)">0</div>
+            <div class="stat-label">Em Análise</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#ede9fe">⏱️</div>
+          <div>
+            <div class="stat-num" id="dnals-sla-venc" style="color:var(--purple)">0</div>
+            <div class="stat-label">SLA Vencido (90d)</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal">✅</div>
+          <div>
+            <div class="stat-num" id="dnals-encerradas" style="color:var(--accent)">0</div>
+            <div class="stat-label">Encerradas / Arquivadas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>📣 Canal de Denúncia ALS</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="openAlsQrModal()">📱 QR Code do Formulário</button>
+          </div>
+        </div>
+        <div class="section-body">
+          <div style="margin-bottom:16px;padding:12px 16px;background:#f0fdf9;border:1px solid #6ee7b7;border-radius:10px;font-size:.83rem;color:#065f46">
+            📢 Este canal recebe denúncias enviadas pelo formulário público (QR code) — <code>frontend/denuncia-als-publica.html</code>.
+            É independente do "Canal de Denúncia" acima: dados, tabela e permissões próprias.
+          </div>
+
+          <div class="filter-bar">
+            <input type="text" id="filtro-dnals-txt" placeholder="🔍 Buscar protocolo, tipo, denunciado..." oninput="renderDenunciasAls()"/>
+            <select id="filtro-dnals-tipo" onchange="renderDenunciasAls()">
+              <option value="">Todos os tipos</option>
+              <option>Assédio moral</option><option>Assédio sexual</option><option>Discriminação</option>
+              <option>Fraude ou desvio de valores</option><option>Roubo/furto</option>
+              <option>Irregularidades trabalhistas</option><option>Conduta antiética</option><option>Outra</option>
+            </select>
+            <select id="filtro-dnals-status" onchange="renderDenunciasAls()">
+              <option value="">Todos os status</option>
+              <option>Aberta</option><option>Em Análise</option><option>Encerrada</option><option>Arquivada</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Protocolo</th>
+                <th>Tipo(s)</th>
+                <th>Setor</th>
+                <th>Denunciado</th>
+                <th>Recebida em</th>
+                <th>Identificação</th>
+                <th>Status</th>
+                <th>SLA (90d)</th>
+                <th>Responsável</th>
+                <th>Ações</th>
+              </tr></thead>
+              <tbody id="tb-denuncias-als"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         FUNCIONÁRIOS
+    ══════════════════════════════════════════ -->
+    <div class="page" id="page-funcionarios">
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card highlight"><div class="stat-icon" style="background:rgba(0,196,154,.2)">👥</div><div><div class="stat-num" id="func-kpi-ativos">0</div><div class="stat-label">Funcionários Ativos</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">📤</div><div><div class="stat-num" id="func-kpi-deslig" style="color:var(--danger)">0</div><div class="stat-label">Desligados</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#e0e7ff">🏢</div><div><div class="stat-num" id="func-kpi-filiais" style="color:var(--primary)">0</div><div class="stat-label">Filiais (ativos)</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal">📋</div><div><div class="stat-num" id="func-kpi-total">0</div><div class="stat-label">Total no cadastro</div></div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><h2>👥 Funcionários</h2></div>
+        <div class="section-body">
+          <div class="dn-pill-tabs">
+            <button class="dn-pill-tab active" data-func-tab="ativos" onclick="switchFuncTab('ativos',this)">👥 Ativos</button>
+            <button class="dn-pill-tab" data-func-tab="desligados" onclick="switchFuncTab('desligados',this)">📤 Desligados</button>
+            <button class="dn-pill-tab" data-func-tab="importar" onclick="switchFuncTab('importar',this)">📥 Importar Planilha</button>
+          </div>
+          <div class="filter-bar" id="func-filtro-bar">
+            <input type="text" id="func-filtro" placeholder="🔍 Buscar por nome, matrícula ou função..." oninput="renderFuncionarios()"/>
+            <select id="func-filtro-filial" onchange="renderFuncionarios()"><option value="">Todas as filiais</option></select>
+          </div>
+          <div id="func-content"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- ══════════════════════════════════════════
          RELATÓRIOS — CANAL DE DENÚNCIA
@@ -833,7 +908,8 @@
         <div class="section-header">
           <h2>📑 Relatórios — Canal de Denúncia</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-accent btn-sm" onclick="exportRelatorio()">⬇️ Exportar CSV</button>
+            <button class="btn btn-accent btn-sm" onclick="exportRelatorioExcel()">📊 Exportar Excel</button>
+            <button class="btn btn-outline btn-sm" onclick="exportRelatorio()">⬇️ Exportar CSV</button>
             <button class="btn btn-outline btn-sm" onclick="printRelatorio()">🖨️ Imprimir</button>
           </div>
         </div>
@@ -1372,6 +1448,7 @@
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- MODAL: DETALHE DENÚNCIA (relato completo) -->
 <div class="modal-overlay" id="modal-dn-detail">
   <div class="modal" style="width:720px;max-height:85vh">
@@ -1417,6 +1494,100 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL: DETALHE DENÚNCIA ALS -->
+<div class="modal-overlay" id="modal-dnals-detail">
+  <div class="modal" style="width:720px;max-height:85vh">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <h3 id="dnals-detail-proto" style="margin-bottom:0;font-family:'DM Mono',monospace;font-size:1rem"></h3>
+      <span id="dnals-detail-status" style="margin-left:4px"></span>
+    </div>
+    <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px" id="dnals-detail-meta"></div>
+    <div style="max-width:260px;margin-bottom:18px">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px">SLA (90 dias)</div>
+      <div id="dnals-detail-sla"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+      <div>
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px">Tipo(s) de Denúncia</div>
+        <div id="dnals-detail-tipos" style="font-size:.88rem;font-weight:600"></div>
+      </div>
+      <div>
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px">Nome do Denunciado</div>
+        <div id="dnals-detail-denunciado" style="font-size:.88rem;font-weight:600"></div>
+      </div>
+      <div>
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px">Onde</div>
+        <div id="dnals-detail-onde" style="font-size:.88rem"></div>
+      </div>
+      <div>
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px">Quando / Horário</div>
+        <div id="dnals-detail-quando" style="font-size:.88rem"></div>
+      </div>
+    </div>
+
+    <div id="dnals-detail-identificado-wrap" style="display:none;margin-bottom:18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#1d4ed8;letter-spacing:.5px;margin-bottom:8px">👤 Denunciante Identificado</div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem">
+        <div id="dnals-detail-id-nome" style="display:none"><span style="color:var(--text-muted);font-size:.72rem;display:block;margin-bottom:1px">Nome</span><strong></strong></div>
+        <div id="dnals-detail-id-tel" style="display:none"><span style="color:var(--text-muted);font-size:.72rem;display:block;margin-bottom:1px">Telefone</span><strong></strong></div>
+        <div id="dnals-detail-id-email" style="display:none"><span style="color:var(--text-muted);font-size:.72rem;display:block;margin-bottom:1px">E-mail</span><strong></strong></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">📝 Descrição do Fato</div>
+      <div id="dnals-detail-descricao" style="background:#f8fafc;border-radius:8px;padding:14px;font-size:.86rem;line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto;border:1px solid var(--border)"></div>
+    </div>
+
+    <div id="dnals-detail-testemunhas-wrap" style="margin-bottom:14px;display:none">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">👀 Testemunhas</div>
+      <div id="dnals-detail-testemunhas" style="background:#f8fafc;border-radius:8px;padding:12px;font-size:.85rem;line-height:1.5;white-space:pre-wrap;border:1px solid var(--border)"></div>
+    </div>
+
+    <div class="field" style="margin-bottom:12px">
+      <label>Status</label>
+      <select id="dnals-detail-status-sel">
+        <option>Aberta</option><option>Em Análise</option><option>Encerrada</option><option>Arquivada</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Responsável pela Apuração</label>
+      <input type="text" id="dnals-detail-resp" placeholder="Nome do investigador">
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Observações Internas / Conclusão <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;text-transform:none">(uso interno — o denunciante nunca vê isto)</span></label>
+      <textarea id="dnals-detail-obs" placeholder="Notas da investigação, ações tomadas, conclusão..."></textarea>
+    </div>
+    <div class="field" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px">
+      <label style="color:#1d4ed8">✉️ Resposta ao Denunciante <span style="font-size:.7rem;color:#1d4ed8;font-weight:400;text-transform:none">(isto é o que aparece para quem consultar o protocolo)</span></label>
+      <textarea id="dnals-detail-resposta" placeholder="Escreva aqui a resposta oficial que o denunciante verá ao consultar o protocolo..."></textarea>
+      <div id="dnals-detail-resposta-em" style="font-size:.72rem;color:var(--text-muted);margin-top:6px"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-dnals-detail')">Fechar</button>
+      <button class="btn btn-accent btn-sm" onclick="salvarDenunciaAls()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: QR CODE DO FORMULÁRIO ALS -->
+<div class="modal-overlay" id="modal-als-qr">
+  <div class="modal" style="width:420px;text-align:center">
+    <h3 style="margin-bottom:6px">📱 QR Code — Canal de Denúncia ALS</h3>
+    <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:18px">Imprima e cole em murais, cartazes ou crachás. Aponta direto para o formulário público.</div>
+    <div id="als-qr-target" style="display:flex;align-items:center;justify-content:center;padding:16px;background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:14px"></div>
+    <style>#als-qr-target canvas, #als-qr-target img { width:100%; height:auto; max-width:320px; }</style>
+    <div style="font-size:.72rem;color:var(--text-muted);word-break:break-all;margin-bottom:16px" id="als-qr-url"></div>
+    <div class="modal-footer" style="justify-content:center">
+      <button class="btn btn-outline" onclick="closeModal('modal-als-qr')">Fechar</button>
+      <button class="btn btn-accent btn-sm" onclick="baixarQrAls()">⬇️ Baixar PNG</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: GERENCIAR DADOS (Admin) -->
 <div class="modal-overlay" id="modal-admin">
   <div class="modal" style="width:560px">
@@ -1544,6 +1715,12 @@
       <div class="field"><label>Probabilidade</label><select id="rm-f-prob"><option value="5">5 — Baixo</option><option value="10" selected>10 — Médio</option><option value="15">15 — Alto</option></select></div>
       <div class="field"><label>Impacto</label><select id="rm-f-impacto"><option value="5">5 — Baixo</option><option value="10" selected>10 — Médio</option><option value="15">15 — Alto</option></select></div>
       <div class="field full"><label>Controle Existente</label><input type="text" id="rm-f-controle" placeholder="Descreva os controles mitigadores"/></div>
+      <div class="field"><label>Eficácia do Controle</label><select id="rm-f-eficacia">
+        <option value="Nenhuma" selected>Nenhuma</option>
+        <option value="Fraca">Fraca (reduz ~20%)</option>
+        <option value="Moderada">Moderada (reduz ~50%)</option>
+        <option value="Forte">Forte (reduz ~80%)</option>
+      </select></div>
       <div class="field full"><label>Observações</label><textarea id="rm-f-obs" rows="2" placeholder="Contexto adicional..."></textarea></div>
     </div>
     <div class="modal-footer">
@@ -1949,14 +2126,16 @@
   <script src="js/filiais.js"></script>
   <script src="js/risco.js"></script>
   <script src="js/denuncias.js"></script>
+  <script src="js/denuncias-als.js"></script>
   <script src="js/relatorios.js"></script>
   <script src="js/importar.js"></script>
   <script src="js/flowboard.js"></script>
   <script src="js/agenda.js"></script>
-  <script src="js/funcionarios.js"></script>
   <script src="js/due-diligence.js"></script>
   <script src="js/due-diligence2.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/funcionarios.js"></script>
   <script src="js/app-init.js"></script>
 </body>
 </html>
