@@ -737,6 +737,7 @@ const MODULOS = [
   { id:'controles',      label:'Controles Internos',  icon:'🛡️', grupo:'Compliance',   restrito:false },
   { id:'planos-acao',    label:'Planos de Ação',      icon:'📋', grupo:'Compliance',   restrito:false },
   { id:'canal-denuncia', label:'Canal de Denúncia',   icon:'📢', grupo:'Denúncias',    restrito:true  },
+  { id:'canal-denuncia-als', label:'Canal de Denúncia ALS', icon:'📣', grupo:'Denúncias', restrito:true },
   { id:'relatorios',     label:'Relatórios',          icon:'📈', grupo:'Análise',      restrito:true  },
   { id:'importar',       label:'Importar Planilha',   icon:'📥', grupo:'Análise',      restrito:false },
   { id:'flowboard',      label:'Flow Board',          icon:'🗂️', grupo:'Fluxo Visual', restrito:false },
@@ -750,7 +751,7 @@ const PERM_PADRAO = {
   'Compliance':   MODULOS.map(m=>m.id),
   'Auditoria':    MODULOS.filter(m=>!['importar'].includes(m.id)).map(m=>m.id),
   'RH':           ['dashboard','agenda','filiais'],
-  'Diretoria':    MODULOS.filter(m=>!['importar','canal-denuncia'].includes(m.id)).map(m=>m.id),
+  'Diretoria':    MODULOS.filter(m=>!['importar','canal-denuncia','canal-denuncia-als'].includes(m.id)).map(m=>m.id),
   'Operações':    ['dashboard','agenda','filiais','mapa-risco','planos-acao'],
   'Visualizador': ['dashboard','filiais'],
   // Perfis personalizados (criados pelo admin) herdam Compliance por padrão
