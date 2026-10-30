@@ -551,7 +551,7 @@ function rmNovoPlano(riscoId) {
   document.getElementById('rm-f-plano-status').value='Não Iniciado';
   document.getElementById('rm-f-plano-prog').value='0';
   const pv=document.getElementById('rm-plano-prog-val'); if(pv) pv.textContent='0%';
-  const pa=document.getElementById('rm-f-plano-andamento'); if(pa) pa.value='';
+  _rmAndNovos=[]; _rmAndRender();
   const r=(DB.riscos||[]).find(x=>x.id===riscoId);
   document.getElementById('rm-modal-plano-risco').textContent=r?r.desc:'';
   openModal('modal-rm-plano');
@@ -566,7 +566,7 @@ function rmEditPlano(id) {
   document.getElementById('rm-f-plano-status').value=pl.status||'Não Iniciado';
   document.getElementById('rm-f-plano-prog').value=pl.prog||0;
   const pv=document.getElementById('rm-plano-prog-val'); if(pv) pv.textContent=(pl.prog||0)+'%';
-  const pa=document.getElementById('rm-f-plano-andamento'); if(pa) pa.value=pl.andamento||'';
+  _rmAndNovos=[]; _rmAndRender();
   const r=(DB.riscos||[]).find(x=>x.id===pl.riscoId);
   document.getElementById('rm-modal-plano-risco').textContent=r?r.desc:'';
   openModal('modal-rm-plano');
@@ -580,9 +580,14 @@ function rmSalvarPlano() {
     tipo:document.getElementById('rm-f-plano-tipo').value,
     status:document.getElementById('rm-f-plano-status').value,
     prog:parseInt(document.getElementById('rm-f-plano-prog').value)||0,
-    andamento:(document.getElementById('rm-f-plano-andamento').value||'').trim(),
   };
   if(!data.titulo){alert('Informe o título.');return;}
+  if((document.getElementById('rm-f-plano-andamento').value||'').trim()){
+    alert('Há um andamento escrito que ainda não foi registrado. Clique em "Confirmar registro" ou apague o texto antes de salvar.');
+    return;
+  }
+  // andamentos de plano já existente são gravados na hora, em rmAddAndamento
+  if(!window._rmEditPlanoId) data.andamento = _rmAndNovos.length ? JSON.stringify(_rmAndNovos) : '';
   if(!DB.rmPlanos) DB.rmPlanos=[];
   if(window._rmEditPlanoId) Object.assign(DB.rmPlanos.find(p=>p.id===window._rmEditPlanoId),data);
   else { DB._ids.rmPlano=(DB._ids.rmPlano||17)+1; DB.rmPlanos.push({id:DB._ids.rmPlano,...data}); }
@@ -591,6 +596,95 @@ function rmSalvarPlano() {
   _rmTab='planos'; saveLocalCache(); renderMapaRisco();
   if(_savedPl) sbSaveRmPlano(_savedPl).then(()=>setSaveIndicator('☁️ Plano salvo na nuvem','var(--accent)'));
 }
+// ── Andamentos do plano: ficha de registros, no mesmo formato da ficha dos funcionários.
+// Gravados no campo "andamento" como lista JSON; texto antigo vira um registro "Observação" sem data.
+const RM_AND_TIPOS = {
+  avanco:     { lbl:'Avanço',     cor:'#10b981', ic:'📈' },
+  obstaculo:  { lbl:'Obstáculo',  cor:'#f59e0b', ic:'⚠️' },
+  observacao: { lbl:'Observação', cor:'#64748b', ic:'📝' },
+};
+let _rmAndTipo = null;  // tipo selecionado no novo registro
+let _rmAndNovos = [];   // registros de um plano ainda não salvo
+
+function _rmAndParse(v){
+  const s = String(v||'').trim();
+  if(!s) return [];
+  if(s[0]==='['){ try { const a = JSON.parse(s); if(Array.isArray(a)) return a; } catch(e){} }
+  return [{ id:'legado', tipo:'observacao', texto:s, data:'', autor:'' }];
+}
+function _rmAndPlano(){
+  return window._rmEditPlanoId ? (DB.rmPlanos||[]).find(p=>p.id===window._rmEditPlanoId) : null;
+}
+function _rmAndRender(){
+  const box = document.getElementById('rm-plano-andamentos');
+  if(!box) return;
+  const pl = _rmAndPlano();
+  const lista = (pl ? _rmAndParse(pl.andamento) : _rmAndNovos).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+  box.innerHTML = lista.length ? lista.map(o=>{
+    const ti = RM_AND_TIPOS[o.tipo] || { lbl:o.tipo, cor:'#64748b', ic:'📌' };
+    return `<div style="border:1px solid #e2e8f0;border-left:3px solid ${ti.cor};border-radius:8px;padding:8px 10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-weight:700;font-size:.82rem;color:${ti.cor}">${ti.ic} ${ti.lbl}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.72rem;color:#94a3b8">${o.data?escapeHtml(String(o.data).split('T')[0]):'registro anterior'}${o.autor?' · '+escapeHtml(o.autor):''}</span>
+          <button type="button" onclick="rmDelAndamento('${escapeHtml(o.id)}')" title="Excluir registro" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.95rem;line-height:1">🗑️</button>
+        </div>
+      </div>
+      <div style="font-size:.82rem;color:#334155;margin-top:4px;white-space:pre-wrap">${escapeHtml(o.texto)}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:.8rem;color:#94a3b8;padding:4px 0 8px">Nenhum andamento registrado ainda.</div>';
+  _rmAndTipo = null;
+  const tipos = document.getElementById('rm-and-tipos');
+  if(tipos) tipos.innerHTML = Object.keys(RM_AND_TIPOS).map(t=>{ const ti=RM_AND_TIPOS[t]; return `<button type="button" class="rm-and-btn" onclick="rmSelAndTipo(this,'${t}')" style="flex:1;min-width:100px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:8px;padding:8px 6px;cursor:pointer;font-size:.8rem;font-weight:600">${ti.ic} ${ti.lbl}</button>`; }).join('');
+  const ta = document.getElementById('rm-f-plano-andamento');
+  if(ta) ta.value = '';
+}
+// Seleciona o tipo do novo registro (destaca o botão escolhido).
+function rmSelAndTipo(el, tipo){
+  _rmAndTipo = tipo;
+  const ti = RM_AND_TIPOS[tipo];
+  el.parentElement.querySelectorAll('.rm-and-btn').forEach(b=>{ b.style.background='#f1f5f9'; b.style.color='#334155'; b.style.borderColor='#cbd5e1'; });
+  if(ti){ el.style.background=ti.cor; el.style.color='#fff'; el.style.borderColor=ti.cor; }
+}
+// Grava a lista no plano já existente e sincroniza.
+function _rmAndGravar(pl, lista, msg){
+  pl.andamento = lista.length ? JSON.stringify(lista) : '';
+  saveLocalCache();
+  sbSaveRmPlano(pl).then(()=>setSaveIndicator(msg,'var(--accent)'));
+}
+function rmAddAndamento(){
+  if(!_rmAndTipo){ alert('Selecione o tipo do registro: Avanço, Obstáculo ou Observação.'); return; }
+  const texto = (document.getElementById('rm-f-plano-andamento').value||'').trim();
+  if(!texto){ alert('Escreva o andamento do plano.'); return; }
+  const reg = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    tipo: _rmAndTipo, texto,
+    data: new Date().toISOString(),
+    autor: (typeof currentUser!=='undefined' && currentUser) ? (currentUser.nome||currentUser.email||'') : ''
+  };
+  const pl = _rmAndPlano();
+  if(pl){
+    const lista = _rmAndParse(pl.andamento);
+    lista.push(reg);
+    _rmAndGravar(pl, lista, '☁️ Andamento salvo na nuvem');
+    if(typeof auditLog==='function') auditLog('update','mapa-risco',`Andamento registrado — plano "${pl.titulo}"`,{tipo:reg.tipo});
+  } else {
+    _rmAndNovos.push(reg);
+  }
+  _rmAndRender();
+}
+function rmDelAndamento(regId){
+  if(!confirm('Excluir este andamento do plano? Essa ação não pode ser desfeita.')) return;
+  const pl = _rmAndPlano();
+  if(pl){
+    _rmAndGravar(pl, _rmAndParse(pl.andamento).filter(o=>String(o.id)!==String(regId)), '☁️ Andamento removido');
+    if(typeof auditLog==='function') auditLog('delete','mapa-risco',`Andamento removido — plano "${pl.titulo}"`,{});
+  } else {
+    _rmAndNovos = _rmAndNovos.filter(o=>String(o.id)!==String(regId));
+  }
+  _rmAndRender();
+}
+
 function rmDelPlano(id) {
   if(!confirm('Excluir plano?')) return;
   DB.rmPlanos=(DB.rmPlanos||[]).filter(p=>p.id!==id);
