@@ -34,9 +34,9 @@ function openDashDrill(type) {
     }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhum risco cadastrado.</td></tr>';
 
   } else if(type === 'riscos') {
-    // Planos de Ação → mostra todos os rmPlanos do mapeamento de risco
+    // Planos de Ação → mostra os rmPlanos do mapeamento de risco ainda não concluídos
     icon = '📋'; title = 'Planos de Ação'; color = 'var(--warn)';
-    const items = (DB.rmPlanos||[]).slice().sort((a,b) => (a.prazo||'').localeCompare(b.prazo||''));
+    const items = (DB.rmPlanos||[]).filter(p => p.status !== 'Concluído').sort((a,b) => (a.prazo||'').localeCompare(b.prazo||''));
     count = items.length;
     const stCor = {'Não Iniciado':'#94a3b8','Em Andamento':'#3b82f6','Concluído':'#00c49a','Vencido':'#ef4444'};
     thead.innerHTML = '<th>Plano de Ação</th><th>Responsável</th><th>Prazo</th><th>Status</th><th>Progresso</th>';
@@ -157,7 +157,7 @@ function _dashVerTodosSla() {
 function renderDashboard() {
   // ── KPIs
   document.getElementById('dash-total-controles').textContent = (DB.riscos||[]).length;
-  const totalPlanos = (DB.rmPlanos||[]).length;
+  const totalPlanos = (DB.rmPlanos||[]).filter(p => p.status !== 'Concluído').length;
   document.getElementById('dash-riscos-altos').textContent = totalPlanos;
   const _hoje = new Date(); _hoje.setHours(0,0,0,0);
   const acVenc = (DB.rmPlanos||[]).filter(p => p.prazo && new Date(p.prazo) < _hoje && p.status !== 'Concluído').length;
