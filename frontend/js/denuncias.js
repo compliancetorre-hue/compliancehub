@@ -412,7 +412,7 @@ function renderDenuncias() {
 
   // Store for re-sort
   _dnLastTabItems = tabItems;
-  _dnLastSlaItems = filtered;
+  _dnLastSlaItems = filtered.filter(d => !['Encerrada','Arquivada'].includes(d.status));
 
   // Apply current sort and render
   _renderDnMainBody();
