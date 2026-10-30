@@ -117,7 +117,7 @@ function _dashRenderSlaDenuncias() {
   if(typeof canAccess === 'function' && !canAccess('canal-denuncia')) {
     _dashSlaCache = [];
     el.innerHTML = '';
-    if(emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.innerHTML = '<div class="ico">🔒</div>Sem permissão para ver o Canal de Denúncia.'; }
+    if(emptyEl) { emptyEl.style.display = ''; emptyEl.innerHTML = '<div class="ico">🔒</div>Sem permissão para ver o Canal de Denúncia.'; }
     return;
   }
 
@@ -134,10 +134,10 @@ function _dashRenderSlaDenuncias() {
   _dashSlaCache = dnAlertas;
 
   if(!dnAlertas.length) {
-    if(emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.innerHTML = '<div class="ico">✅</div>Nenhuma denúncia com SLA crítico.'; }
+    if(emptyEl) { emptyEl.style.display = ''; emptyEl.innerHTML = '<div class="ico">✅</div>Nenhuma denúncia com SLA crítico.'; }
     el.innerHTML = '';
   } else {
-    if(emptyEl) emptyEl.classList.add('hidden');
+    if(emptyEl) emptyEl.style.display = 'none';
     el.innerHTML = dnAlertas.slice(0,5).map(x => {
       const venc = x.pct >= 100;
       const color = venc ? 'var(--danger)' : 'var(--warn)';
@@ -215,10 +215,10 @@ function renderDashboard() {
   _dashAcUrgCache = acUrg;
   const tbAc = document.getElementById('dash-acoes-urgentes');
   if(acUrg.length === 0) {
-    document.getElementById('dash-empty-acao').classList.remove('hidden');
+    document.getElementById('dash-empty-acao').style.display = '';
     tbAc.innerHTML = '';
   } else {
-    document.getElementById('dash-empty-acao').classList.add('hidden');
+    document.getElementById('dash-empty-acao').style.display = 'none';
     tbAc.innerHTML = acUrg.map(p =>
       `<tr style="cursor:pointer" onclick="_dashIrParaRmPlano(${p.riscoId})" title="Ver no Mapa de Risco"><td><strong>${p.titulo}</strong></td><td>${p.resp}</td><td>${prazoChip(p.prazo)}</td><td>${statusBadge(p.status)}</td></tr>`
     ).join('');
