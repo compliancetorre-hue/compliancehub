@@ -220,10 +220,20 @@ function funcHandleFile(ev){
     try {
       if(typeof XLSX === 'undefined'){ if(box) box.innerHTML='<p style="color:var(--danger)">Biblioteca de leitura de planilha ainda carregando — tente de novo em instantes.</p>'; return; }
       const wb = XLSX.read(e.target.result, {type:'array', cellDates:true, codepage:65001});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rowsObj = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true, cellDates:true});
-      const parsed = funcParsePlanilha(rowsObj);
-      if(parsed.erro){ if(box) box.innerHTML='<p style="color:var(--danger)">⚠️ '+escapeHtml(parsed.erro)+'</p>'; return; }
+      // Procura a aba que REALMENTE tem a lista de ativos (colunas "Chapa" e
+      // "Nome"), em vez de assumir a primeira. Exportações às vezes vêm com
+      // uma tabela dinâmica/resumo na 1ª aba e os dados numa aba seguinte —
+      // era isso que dava "não tem o nome chapa".
+      let parsed = null, ultimoErro = '';
+      for(const nomeAba of wb.SheetNames){
+        const ws = wb.Sheets[nomeAba];
+        if(!ws) continue;
+        const rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true, cellDates:true});
+        const p = funcParsePlanilha(rows);
+        if(!p.erro && p.lista.length){ parsed = p; break; }
+        if(p.erro) ultimoErro = p.erro;
+      }
+      if(!parsed){ if(box) box.innerHTML='<p style="color:var(--danger)">⚠️ '+escapeHtml(ultimoErro||'Nenhuma aba com as colunas "Chapa" e "Nome" foi encontrada. Exporte a lista de ativos (não uma tabela dinâmica/resumo).')+'</p>'; return; }
       const diff = funcCalcularDiff(parsed.lista);
       _funcImportPreview = { listaPlanilha: parsed.lista, diff, ignoradasDup: parsed.ignoradasDup };
       _ultimaDupCount = parsed.ignoradasDup;
@@ -292,11 +302,17 @@ function renderFuncionarios(){
   if(_funcTab==='importar'){ content.innerHTML = nuvemAviso + funcHtmlImportar(); return; }
 
   funcPopularFiltroFilial();
+  funcPopularFiltroCampo('func-filtro-situacao','situacao','Todas as situações');
+  funcPopularFiltroCampo('func-filtro-setor','secao','Todos os setores');
   const lista = _funcTab==='ativos' ? ativos : deslig;
   const q = _fNorm((document.getElementById('func-filtro')||{value:''}).value);
   const filialSel = (document.getElementById('func-filtro-filial')||{value:''}).value;
+  const sitSel = (document.getElementById('func-filtro-situacao')||{value:''}).value;
+  const setorSel = (document.getElementById('func-filtro-setor')||{value:''}).value;
   const filtrada = lista.filter(f =>
     (!filialSel || String(f.filial)===String(filialSel)) &&
+    (!sitSel || String(f.situacao)===sitSel) &&
+    (!setorSel || String(f.secao)===setorSel) &&
     (!q || _fNorm(f.nome).includes(q) || _fNorm(f.matricula).includes(q) || _fNorm(funcFilialLabel(f.filial)).includes(q) || _fNorm(f.cargo).includes(q))
   );
   content.innerHTML = nuvemAviso + funcHtmlTabela(filtrada, _funcTab);
@@ -317,6 +333,20 @@ function funcPopularFiltroFilial(){
   const atual = sel.value;
   sel.innerHTML = '<option value="">Todas as filiais</option>' +
     cods.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(funcFilialLabel(c))}</option>`).join('');
+  if([...sel.options].some(o=>o.value===atual)) sel.value = atual;
+}
+
+// Popula um <select> de filtro com os valores distintos de um campo da lista
+// (usado por Situação e Setor/Seção). Só reconstrói quando o conjunto muda,
+// pra não atrapalhar quem está com o menu aberto. Mantém a seleção atual.
+function funcPopularFiltroCampo(selId, campo, labelTodos){
+  const sel = document.getElementById(selId);
+  if(!sel) return;
+  const vals = [...new Set(DB_FUNC.map(f=>f[campo]).filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  if(sel.options.length === vals.length+1) return; // já populado com o mesmo conjunto
+  const atual = sel.value;
+  sel.innerHTML = `<option value="">${escapeHtml(labelTodos)}</option>` +
+    vals.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
   if([...sel.options].some(o=>o.value===atual)) sel.value = atual;
 }
 
