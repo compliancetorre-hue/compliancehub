@@ -860,20 +860,50 @@ function canAccess(modulo) {
   return permGetUser(currentUser.email).includes(modulo);
 }
 
+// Após o login, leva o usuário para a PRIMEIRA página a que ele tem acesso,
+// na ordem da navegação (MODULOS). Evita cair no Dashboard sem permissão.
+// Quem tem acesso ao Dashboard (1º da lista) continua caindo nele.
+function irParaPrimeiraPaginaPermitida() {
+  if(!currentUser) return;
+  const primeira = MODULOS.find(m => canAccess(m.id) && document.getElementById('page-'+m.id));
+  if(!primeira) return;            // não tem acesso a nenhum módulo
+  if(currentPage === primeira.id && primeira.id === 'dashboard') return;
+  goto(primeira.id);
+}
+
 function isAdmin() {
   return currentUser && (currentUser.email === ADMIN_EMAIL || currentUser.perfil === 'Admin');
 }
 
 // ── Atualizar nav com base nas permissões
 function permAtualizarNav() {
+  // 1) Módulos sem acesso ficam OCULTOS (não mais apenas "apagados"); os com
+  //    acesso ficam visíveis e clicáveis normalmente.
   MODULOS.forEach(m => {
     const el = document.querySelector(`[data-page="${m.id}"]`);
     if(!el) return;
     const tem = canAccess(m.id);
-    el.classList.toggle('nav-item-locked', !tem);
-    el.style.pointerEvents = tem ? '' : 'none';
-    el.title = tem ? '' : 'Sem permissão — solicite acesso ao administrador';
+    el.style.display = tem ? '' : 'none';
+    el.classList.remove('nav-item-locked');
+    el.style.pointerEvents = '';
+    el.title = '';
   });
+  // 2) Oculta o título de cada seção que ficou sem nenhum item visível
+  //    (ex.: "Visão Geral" quando o usuário não vê Dashboard nem Agenda).
+  //    querySelectorAll devolve os nós em ordem do documento, então basta
+  //    acumular a visibilidade dos itens até o próximo rótulo.
+  const nodes = document.querySelectorAll('#sidebar .nav-label, #sidebar [data-page]');
+  let label = null, temVisivel = false;
+  const aplicar = () => { if(label) label.style.display = temVisivel ? '' : 'none'; };
+  nodes.forEach(n => {
+    if(n.classList.contains('nav-label')) {
+      aplicar();                 // fecha o grupo anterior
+      label = n; temVisivel = false;
+    } else if(n.style.display !== 'none') {
+      temVisivel = true;         // há ao menos um item visível no grupo atual
+    }
+  });
+  aplicar();                     // fecha o último grupo
 }
 
 // ── Interceptar goto para verificar permissão
