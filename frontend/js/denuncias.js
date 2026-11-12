@@ -633,6 +633,9 @@ function openDnDetail(id) {
   if(d.obs) { obsW.style.display=''; document.getElementById('dn-detail-obs').textContent = d.obs; }
   else obsW.style.display='none';
 
+  const conclEl = document.getElementById('dn-detail-conclusao');
+  if(conclEl) conclEl.innerHTML = _conclusaoSelect(d);
+
   document.getElementById('dn-detail-edit-btn').onclick = () => { closeModal('modal-dn-detail'); editDenuncia(id); };
   openModal('modal-dn-detail');
 }
