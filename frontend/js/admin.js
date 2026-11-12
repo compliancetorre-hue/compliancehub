@@ -679,27 +679,31 @@ async function salvarNovoUsuario() {
 
     const palavras=nome.split(' ').filter(p=>p.length>0);
     const avatar=palavras.length>=2?(palavras[0][0]+palavras[palavras.length-1][0]).toUpperCase():nome.substring(0,2).toUpperCase();
-    const hash=await _hashSenha(email,senha);
     const perms=MODULOS.filter(m=>{const el=document.getElementById(`nu-perm-${m.id}`);return el&&el.checked;}).map(m=>m.id);
-    const novoUser={email,hash,nome,perfil:_novoUserPerfil,avatar,cor:_novoUserCor};
+
+    // Cria o usuário NO SERVIDOR. A Edge Function "api" recebe a senha em texto
+    // (protegida pelo HTTPS), DESCARTA qualquer hash enviado pelo cliente e gera
+    // o bcrypt da senha em "senha_hash" — que é exatamente o que a rota /login
+    // compara. Por isso NÃO se calcula hash aqui: o antigo _hashSenha (SHA-256)
+    // não existe mais no cliente e nem serviria para o bcrypt do servidor.
+    await _comTimeout(
+      sbUpsert('usuarios', { nome, email, perfil:_novoUserPerfil, avatar, cor:_novoUserCor, senha }),
+      20000, 'criar usuário no servidor'
+    );
+
+    // Deu certo no servidor: registra na lista local (SEM senha e SEM hash),
+    // só para a UI e para as permissões.
+    const novoUser={email,nome,perfil:_novoUserPerfil,avatar,cor:_novoUserCor};
     USUARIOS.push(novoUser);
     PERMISSOES[email]=perms;
     permSave();
-
-    // usersSave já grava no localStorage de imediato e só depois sincroniza
-    // com o Supabase; o timeout aqui garante que uma rede travada não deixe
-    // o botão girando para sempre — o usuário já foi salvo localmente.
-    let syncOk=true;
-    try { await _comTimeout(usersSave(), 20000, 'salvar no servidor'); }
-    catch(e){ syncOk=false; console.warn('[salvarNovoUsuario] usersSave:', e.message); }
+    try { await _comTimeout(usersSave(), 20000, 'salvar lista de usuários'); }
+    catch(e){ console.warn('[salvarNovoUsuario] usersSave (lista) falhou — usuário já existe no servidor:', e.message); }
 
     closeModal('modal-novo-usuario');
     renderUsersModal();
     auditLog('usuario', 'usuarios', `Usuário "${nome}" criado`, {email, perfil:_novoUserPerfil});
-    if(syncOk)
-      setSaveIndicator(`✅ Usuário ${nome} criado — sincronizado automaticamente`,'var(--accent)');
-    else
-      setSaveIndicator(`⚠️ Usuário ${nome} criado localmente — sincronização com o servidor pendente`,'var(--warn)');
+    setSaveIndicator(`✅ Usuário ${nome} criado — já pode fazer login`,'var(--accent)');
   } catch(e) {
     console.error('[salvarNovoUsuario] erro inesperado:', e);
     if(erro) erro.textContent='Não foi possível criar o usuário: '+((e&&e.message)||e)+'. Tente novamente.';
@@ -743,21 +747,31 @@ async function salvarNovaSenha() {
   const nova2=document.getElementById('ap-senha-nova2').value;
   const erro=document.getElementById('ap-erro');
   erro.textContent='';
-  const user=USUARIOS.find(u=>u.email===email);
-  if(!user){erro.textContent='Usuário não encontrado.';return;}
-  const ehProprioUsuario=currentUser.email===email;
-  if(ehProprioUsuario || !isAdmin()) {
-    if(!atual){erro.textContent='Informe a senha atual.';return;}
-    const hashAtual=await _hashSenha(email,atual);
-    if(hashAtual!==user.hash){erro.textContent='Senha atual incorreta.';return;}
-  }
   if(!nova||nova.length<6){erro.textContent='Nova senha deve ter pelo menos 6 caracteres.';return;}
   if(nova!==nova2){erro.textContent='As senhas não conferem.';return;}
-  const novoHash=await _hashSenha(email,nova);
-  user.hash=novoHash;
-  await usersSave();
-  closeModal('modal-alterar-senha');
-  setSaveIndicator('✅ Senha alterada — sincronizada automaticamente','var(--accent)');
+  const ehProprioUsuario = currentUser && currentUser.email===email;
+  try{
+    if(isAdmin() && !ehProprioUsuario){
+      // Admin redefinindo a senha de OUTRO usuário: manda a nova senha em texto
+      // para a tabela usuarios; o servidor gera o bcrypt em senha_hash. O id da
+      // linha é obrigatório para ser UPDATE (sem id viraria um INSERT duplicado).
+      const rows = await sbGet('usuarios','');
+      const alvo = (Array.isArray(rows)?rows:[]).find(r=>r.email===email);
+      if(!alvo || alvo.id==null){erro.textContent='Usuário não encontrado no servidor.';return;}
+      await sbUpsert('usuarios', { id: alvo.id, senha: nova });
+    } else {
+      // Próprio usuário (ou não-admin): usa a rota /change-password, que exige a
+      // senha atual e valida tudo no servidor com bcrypt.
+      if(!atual){erro.textContent='Informe a senha atual.';return;}
+      const r = await fetch(`${EDGE_URL}/change-password`, { method:'POST', headers:_efH(), body: JSON.stringify({ senha_atual: atual, nova_senha: nova }) });
+      if(!r.ok){ const t=await r.json().catch(()=>null); erro.textContent=(t&&t.error)||'Não foi possível alterar a senha.'; return; }
+    }
+    closeModal('modal-alterar-senha');
+    setSaveIndicator('✅ Senha alterada','var(--accent)');
+  }catch(e){
+    console.error('[salvarNovaSenha]',e);
+    erro.textContent='Falha ao alterar a senha: '+((e&&e.message)||e);
+  }
 }
 
 // ════════════════════════════════════════════════════
