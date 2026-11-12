@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════
 // FLOWBOARD
 // ══════════════════════════════════════════
-let fbCurrentView = 'planos-acao';
+let fbCurrentView = 'denuncias';
 let fbDragCard = null;
 let fbDragSrcCol = null;
 let fbDragCol = null;
