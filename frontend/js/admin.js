@@ -642,33 +642,70 @@ function nuSenhaStrength(val) {
   bar.className='senha-strength '+(score<=1?'strength-weak':score<=2?'strength-medium':'strength-strong');
 }
 
+// Garante que uma Promise não trave a tela para sempre: se o servidor não
+// responder em `ms`, rejeita com uma mensagem clara em vez de ficar pendente.
+function _comTimeout(promise, ms, oque){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('Tempo esgotado ao '+oque+' (servidor não respondeu em '+Math.round(ms/1000)+'s)')), ms))
+  ]);
+}
+
 async function salvarNovoUsuario() {
+  const btn=document.getElementById('nu-btn-criar');
   const nome=document.getElementById('nu-nome').value.trim();
   const email=document.getElementById('nu-email').value.trim().toLowerCase();
   const senha=document.getElementById('nu-senha').value;
   const senha2=document.getElementById('nu-senha2').value;
   const erro=document.getElementById('nu-erro');
-  if(!nome){erro.textContent='Informe o nome.';return;}
-  if(!email||!email.includes('@')){erro.textContent='E-mail inválido.';return;}
-  // Recarregar antes de verificar duplicata
-  await usersLoad();
-  if(USUARIOS.find(u=>u.email===email)){erro.textContent='Este e-mail já está cadastrado.';return;}
-  if(!senha||senha.length<6){erro.textContent='Senha deve ter pelo menos 6 caracteres.';return;}
-  if(senha!==senha2){erro.textContent='As senhas não conferem.';return;}
-  erro.textContent='';
-  const palavras=nome.split(' ').filter(p=>p.length>0);
-  const avatar=palavras.length>=2?(palavras[0][0]+palavras[palavras.length-1][0]).toUpperCase():nome.substring(0,2).toUpperCase();
-  const hash=await _hashSenha(email,senha);
-  const perms=MODULOS.filter(m=>{const el=document.getElementById(`nu-perm-${m.id}`);return el&&el.checked;}).map(m=>m.id);
-  const novoUser={email,hash,nome,perfil:_novoUserPerfil,avatar,cor:_novoUserCor};
-  USUARIOS.push(novoUser);
-  PERMISSOES[email]=perms;
-  permSave();
-  await usersSave();
-  closeModal('modal-novo-usuario');
-  renderUsersModal();
-  auditLog('usuario', 'usuarios', `Usuário "${nome}" criado`, {email, perfil:_novoUserPerfil});
-  setSaveIndicator(`✅ Usuário ${nome} criado — sincronizado automaticamente`,'var(--accent)');
+  if(erro) erro.textContent='';
+  // Validações locais (rápidas, antes de qualquer chamada ao servidor)
+  if(!nome){ if(erro) erro.textContent='Informe o nome.'; return; }
+  if(!email||!email.includes('@')){ if(erro) erro.textContent='E-mail inválido.'; return; }
+  if(!senha||senha.length<6){ if(erro) erro.textContent='Senha deve ter pelo menos 6 caracteres.'; return; }
+  if(senha!==senha2){ if(erro) erro.textContent='As senhas não conferem.'; return; }
+
+  // Feedback imediato: o clique SEMPRE mostra que algo está acontecendo.
+  const txtOrig = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Criando...'; }
+
+  try {
+    // Recarregar antes de verificar duplicata. Se o servidor demorar/falhar,
+    // não trava a criação — seguimos com a lista que já temos em memória.
+    try { await _comTimeout(usersLoad(), 15000, 'recarregar usuários'); }
+    catch(e){ console.warn('[salvarNovoUsuario] usersLoad falhou, seguindo com cache local:', e.message); }
+
+    if(USUARIOS.find(u=>u.email===email)){ if(erro) erro.textContent='Este e-mail já está cadastrado.'; return; }
+
+    const palavras=nome.split(' ').filter(p=>p.length>0);
+    const avatar=palavras.length>=2?(palavras[0][0]+palavras[palavras.length-1][0]).toUpperCase():nome.substring(0,2).toUpperCase();
+    const hash=await _hashSenha(email,senha);
+    const perms=MODULOS.filter(m=>{const el=document.getElementById(`nu-perm-${m.id}`);return el&&el.checked;}).map(m=>m.id);
+    const novoUser={email,hash,nome,perfil:_novoUserPerfil,avatar,cor:_novoUserCor};
+    USUARIOS.push(novoUser);
+    PERMISSOES[email]=perms;
+    permSave();
+
+    // usersSave já grava no localStorage de imediato e só depois sincroniza
+    // com o Supabase; o timeout aqui garante que uma rede travada não deixe
+    // o botão girando para sempre — o usuário já foi salvo localmente.
+    let syncOk=true;
+    try { await _comTimeout(usersSave(), 20000, 'salvar no servidor'); }
+    catch(e){ syncOk=false; console.warn('[salvarNovoUsuario] usersSave:', e.message); }
+
+    closeModal('modal-novo-usuario');
+    renderUsersModal();
+    auditLog('usuario', 'usuarios', `Usuário "${nome}" criado`, {email, perfil:_novoUserPerfil});
+    if(syncOk)
+      setSaveIndicator(`✅ Usuário ${nome} criado — sincronizado automaticamente`,'var(--accent)');
+    else
+      setSaveIndicator(`⚠️ Usuário ${nome} criado localmente — sincronização com o servidor pendente`,'var(--warn)');
+  } catch(e) {
+    console.error('[salvarNovoUsuario] erro inesperado:', e);
+    if(erro) erro.textContent='Não foi possível criar o usuário: '+((e&&e.message)||e)+'. Tente novamente.';
+  } finally {
+    if(btn){ btn.disabled=false; btn.innerHTML=txtOrig||'✅ Criar Usuário'; }
+  }
 }
 
 async function confirmarExcluirUsuario(email, nome) {
