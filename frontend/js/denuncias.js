@@ -471,6 +471,7 @@ function openModalDenuncia() {
   const dataEl = document.getElementById('f-dn-data');
   if(dataEl) dataEl.value = new Date().toISOString().split('T')[0];
   setSelectedPerigo('Leve');
+  const cw = document.getElementById('f-dn-conclusao-wrap'); if(cw) cw.style.display = 'none';
   openModal('modal-denuncia');
 }
 
@@ -492,6 +493,9 @@ function editDenuncia(id) {
   if(document.getElementById('f-dn-data')) document.getElementById('f-dn-data').value = d.data||'';
   if(document.getElementById('f-dn-proto')) document.getElementById('f-dn-proto').value = d.proto||'';
   setSelectedPerigo(d.perigo||'Leve');
+  const cw = document.getElementById('f-dn-conclusao-wrap');
+  const cEl = document.getElementById('f-dn-conclusao');
+  if(cw && cEl){ cEl.innerHTML = _conclusaoSelect(d); cw.style.display = ''; }
   openModal('modal-denuncia');
 }
 
