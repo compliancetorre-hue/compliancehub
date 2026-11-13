@@ -300,6 +300,7 @@ function renderFuncionarios(){
     : '';
 
   if(_funcTab==='importar'){ content.innerHTML = nuvemAviso + funcHtmlImportar(); return; }
+  if(_funcTab==='ocorrencias'){ content.innerHTML = nuvemAviso + funcHtmlOcorrencias(); return; }
 
   funcPopularFiltroFilial();
   funcPopularFiltroCampo('func-filtro-situacao','situacao','Todas as situações');
@@ -393,6 +394,48 @@ function funcHtmlTabela(lista, aba){
   <div style="margin-top:8px;font-size:.78rem;color:var(--text-muted)">Exibindo ${lista.length} funcionário(s) — clique em um nome para ver todos os dados.</div>`;
 }
 
+// Aba "Ocorrências": lista TODAS as ocorrências (advertência/reciclagem/
+// suspensão/observação) de todos os funcionários, mais recentes primeiro.
+function funcHtmlOcorrencias(){
+  const todas = [];
+  DB_FUNC.forEach(f=>{ (f.ocorrencias||[]).forEach(o=>{ todas.push({ o, mat:f.matricula, nome:f.nome, filial:f.filial }); }); });
+  if(!todas.length){
+    return `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div style="font-size:2.2rem;margin-bottom:8px">📋</div><div style="font-weight:700">Nenhuma ocorrência registrada ainda.</div><div style="font-size:.85rem;margin-top:6px">Abra um funcionário na aba <strong>Ativos</strong> e registre uma advertência, reciclagem, suspensão ou observação.</div></div>`;
+  }
+  // Busca (campo fica fora da área que re-renderiza, então não perde o foco)
+  const q = _fNorm((document.getElementById('func-oc-busca')||{value:''}).value);
+  let lista = todas;
+  if(q){
+    lista = todas.filter(({o,mat,nome})=>{
+      const lbl = (FUNC_OC_TIPOS[o.tipo]||{}).lbl || o.tipo || '';
+      return _fNorm(nome).includes(q) || _fNorm(mat).includes(q) ||
+             _fNorm(o.motivo||'').includes(q) || _fNorm(lbl).includes(q) ||
+             _fNorm('nº '+(o.numero||'')).includes(q) || _fNorm(String(o.numero||'')).includes(q);
+    });
+  }
+  if(!lista.length){
+    return `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div style="font-size:2rem;margin-bottom:8px">🔍</div><div style="font-weight:700">Nenhuma ocorrência encontrada para essa busca.</div></div>`;
+  }
+  lista.sort((a,b)=>String(b.o.data||'').localeCompare(String(a.o.data||'')));
+  const linhas = lista.map(({o,mat,nome,filial})=>{
+    const ti = FUNC_OC_TIPOS[o.tipo] || { lbl:o.tipo, cor:'#64748b', ic:'📌' };
+    const mtv = String(o.motivo||'');
+    return `<tr style="cursor:pointer" onclick="funcAbrirDetalhe('${escapeHtml(mat)}')" title="Abrir ficha do funcionário">
+      <td><strong style="font-size:.82rem;white-space:nowrap">${escapeHtml(String(o.data||'').split('T')[0])}</strong></td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;color:var(--primary)">Nº ${o.numero||'—'}</span></td>
+      <td><strong style="font-size:.88rem;color:var(--primary);text-decoration:underline;text-decoration-color:#cbd5e1">${escapeHtml(nome)}</strong><br><span style="font-size:.72rem;color:var(--text-muted);font-family:'DM Mono',monospace">${escapeHtml(mat)}</span></td>
+      <td><span style="display:inline-block;background:${ti.cor}1a;color:${ti.cor};padding:2px 9px;border-radius:20px;font-size:.76rem;font-weight:700;white-space:nowrap">${ti.ic} ${escapeHtml(ti.lbl)}</span></td>
+      <td><span style="font-size:.78rem;white-space:nowrap">${escapeHtml(funcFilialLabel(filial))}</span></td>
+      <td><span style="font-size:.8rem;color:#334155">${escapeHtml(mtv.length>90 ? mtv.slice(0,90)+'…' : mtv)}</span></td>
+    </tr>`;
+  }).join('');
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Data</th><th>Nº</th><th>Funcionário</th><th>Tipo</th><th>Filial</th><th>Motivo</th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table></div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--text-muted)">Exibindo ${lista.length} de ${todas.length} ocorrência(s)${q?' (filtrado)':''} — clique numa linha para abrir a ficha do funcionário.</div>`;
+}
+
 // ── Ficha do funcionário: tipos de registro (advertência/reciclagem/suspensão) ──
 const FUNC_OC_TIPOS = {
   advertencia: { lbl:'Advertência', cor:'#f59e0b', ic:'⚠️' },
@@ -403,13 +446,12 @@ const FUNC_OC_TIPOS = {
 let _funcOcTipo = null; // tipo selecionado no formulário de novo registro
 
 // ── Detalhe do funcionário (abre ao clicar no nome) — dados + ficha de registros ──
-function funcAbrirDetalhe(matricula, abaInicial){
+function funcAbrirDetalhe(matricula){
   const f = DB_FUNC.find(x=>String(x.matricula)===String(matricula));
   if(!f) return;
   // fecha qualquer detalhe já aberto (permite re-renderizar após add/excluir)
   document.querySelectorAll('.func-detalhe-overlay').forEach(o=>o.remove());
   _funcOcTipo = null;
-  const _aba = abaInicial || 'admissao';
   // Backfill: garante um número de ocorrência estável aos registros antigos.
   if(Array.isArray(f.ocorrencias) && f.ocorrencias.some(o=>!o.numero)){
     let maxN = f.ocorrencias.reduce((m,o)=>Math.max(m, o.numero||0), 0);
@@ -454,36 +496,27 @@ function funcAbrirDetalhe(matricula, abaInicial){
         <button onclick="this.closest('.func-detalhe-overlay').remove()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;flex-shrink:0;font-size:1rem">✕</button>
       </div>
       <div style="padding:14px 22px 22px">
-        <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:2px solid #eef2f7">
-          <button type="button" id="func-aba-btn-admissao" onclick="funcMostrarAba('admissao')" style="background:none;border:none;border-bottom:2px solid ${_aba==='admissao'?'var(--primary)':'transparent'};margin-bottom:-2px;padding:8px 12px;cursor:pointer;font-size:.85rem;font-weight:${_aba==='admissao'?'800':'600'};color:${_aba==='admissao'?'var(--primary)':'#64748b'}">👤 Admissão</button>
-          <button type="button" id="func-aba-btn-ocorrencia" onclick="funcMostrarAba('ocorrencia')" style="background:none;border:none;border-bottom:2px solid ${_aba==='ocorrencia'?'var(--primary)':'transparent'};margin-bottom:-2px;padding:8px 12px;cursor:pointer;font-size:.85rem;font-weight:${_aba==='ocorrencia'?'800':'600'};color:${_aba==='ocorrencia'?'var(--primary)':'#64748b'}">📋 Ocorrência${ocs.length?` (${ocs.length})`:''}</button>
+        ${linha('Matrícula', `<span style="font-family:'DM Mono',monospace">${mat}</span>`, true)}
+        ${linha('Nome', escapeHtml(f.nome), true)}
+        ${linha('Filial', escapeHtml(funcFilialLabel(f.filial)), true)}
+        ${linha('Função', escapeHtml(f.cargo), true)}
+        ${linha('Data de admissão', escapeHtml(f.admissao), true)}
+        ${linha('Seção', escapeHtml(f.secao))}
+        ${linha('Situação', escapeHtml(f.situacao))}
+        ${f.importadoEm ? linha('Importado em', escapeHtml((f.importadoEm||'').split('T')[0])) : ''}
+
+        <div style="margin-top:16px">
+          <div style="font-weight:800;font-size:.9rem;color:var(--primary);margin-bottom:8px">📋 Ficha de Registros</div>
+          ${ocsHtml}
         </div>
 
-        <div id="func-aba-admissao" style="display:${_aba==='admissao'?'':'none'}">
-          ${linha('Matrícula', `<span style="font-family:'DM Mono',monospace">${mat}</span>`, true)}
-          ${linha('Nome', escapeHtml(f.nome), true)}
-          ${linha('Filial', escapeHtml(funcFilialLabel(f.filial)), true)}
-          ${linha('Função', escapeHtml(f.cargo), true)}
-          ${linha('Data de admissão', escapeHtml(f.admissao), true)}
-          ${linha('Seção', escapeHtml(f.secao))}
-          ${linha('Situação', escapeHtml(f.situacao))}
-          ${f.importadoEm ? linha('Importado em', escapeHtml((f.importadoEm||'').split('T')[0])) : ''}
-        </div>
-
-        <div id="func-aba-ocorrencia" style="display:${_aba==='ocorrencia'?'':'none'}">
-          <div>
-            <div style="font-weight:800;font-size:.9rem;color:var(--primary);margin-bottom:8px">📋 Ficha de Registros</div>
-            ${ocsHtml}
+        <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
+          <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">➕ Novo registro</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            ${btnTipo('advertencia')}${btnTipo('reciclagem')}${btnTipo('suspensao')}${btnTipo('observacao')}
           </div>
-
-          <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">➕ Novo registro</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-              ${btnTipo('advertencia')}${btnTipo('reciclagem')}${btnTipo('suspensao')}${btnTipo('observacao')}
-            </div>
-            <textarea id="func-oc-motivo" placeholder="Escreva o motivo / a observação do registro..." style="width:100%;min-height:72px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-            <button type="button" class="btn btn-accent" style="margin-top:10px;width:100%;justify-content:center" onclick="funcAddOcorrencia('${mat}')">✅ Confirmar registro</button>
-          </div>
+          <textarea id="func-oc-motivo" placeholder="Escreva o motivo / a observação do registro..." style="width:100%;min-height:72px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+          <button type="button" class="btn btn-accent" style="margin-top:10px;width:100%;justify-content:center" onclick="funcAddOcorrencia('${mat}')">✅ Confirmar registro</button>
         </div>
       </div>
     </div>`;
@@ -497,20 +530,6 @@ function funcSelOcTipo(el, tipo){
   const ti = FUNC_OC_TIPOS[tipo];
   el.parentElement.querySelectorAll('.func-oc-btn').forEach(b=>{ b.style.background='#f1f5f9'; b.style.color='#334155'; b.style.borderColor='#cbd5e1'; });
   if(ti){ el.style.background=ti.cor; el.style.color='#fff'; el.style.borderColor=ti.cor; }
-}
-
-// Alterna entre as abas "Admissão" e "Ocorrência" na ficha do funcionário.
-function funcMostrarAba(aba){
-  const map = { admissao:'func-aba-admissao', ocorrencia:'func-aba-ocorrencia' };
-  Object.entries(map).forEach(([k,id])=>{ const el=document.getElementById(id); if(el) el.style.display = (k===aba)?'':'none'; });
-  const btns = { admissao:'func-aba-btn-admissao', ocorrencia:'func-aba-btn-ocorrencia' };
-  Object.entries(btns).forEach(([k,id])=>{
-    const b=document.getElementById(id); if(!b) return;
-    const ativo = (k===aba);
-    b.style.borderBottom = '2px solid ' + (ativo?'var(--primary)':'transparent');
-    b.style.color = ativo ? 'var(--primary)' : '#64748b';
-    b.style.fontWeight = ativo ? '800' : '600';
-  });
 }
 
 // Adiciona um registro à ficha do funcionário e persiste.
@@ -535,7 +554,7 @@ function funcAddOcorrencia(matricula){
   funcSalvarSupabase();
   if(typeof setSaveIndicator==='function') setSaveIndicator(`✅ Ocorrência Nº ${numero} (${ti.lbl}) registrada`, 'var(--accent)');
   _funcOcTipo = null;
-  funcAbrirDetalhe(matricula, 'ocorrencia'); // reabre na aba de Ocorrência
+  funcAbrirDetalhe(matricula); // reabre já atualizado
 }
 
 // Exclui um registro da ficha.
@@ -547,13 +566,15 @@ function funcDelOcorrencia(matricula, ocId){
   funcSaveLocal();
   if(typeof auditLog==='function') auditLog('delete','funcionarios',`Registro removido da ficha — ${f.nome} (mat. ${f.matricula})`,{});
   funcSalvarSupabase();
-  funcAbrirDetalhe(matricula, 'ocorrencia');
+  funcAbrirDetalhe(matricula);
 }
 
 function switchFuncTab(tab, el){
   _funcTab = tab;
   if(el){ document.querySelectorAll('#page-funcionarios .dn-pill-tab').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
   const fb = document.getElementById('func-filtro-bar');
-  if(fb) fb.style.display = (tab==='importar') ? 'none' : '';
+  if(fb) fb.style.display = (tab==='importar' || tab==='ocorrencias') ? 'none' : '';
+  const ocb = document.getElementById('func-oc-filtro-bar');
+  if(ocb) ocb.style.display = (tab==='ocorrencias') ? '' : 'none';
   renderFuncionarios();
 }
