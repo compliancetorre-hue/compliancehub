@@ -892,6 +892,7 @@
           <div class="dn-pill-tabs">
             <button class="dn-pill-tab active" data-func-tab="ativos" onclick="switchFuncTab('ativos',this)">👥 Ativos</button>
             <button class="dn-pill-tab" data-func-tab="desligados" onclick="switchFuncTab('desligados',this)">📤 Desligados</button>
+            <button class="dn-pill-tab" data-func-tab="ocorrencias" onclick="switchFuncTab('ocorrencias',this)">📋 Ocorrências</button>
             <button class="dn-pill-tab" data-func-tab="importar" onclick="switchFuncTab('importar',this)">📥 Importar Planilha</button>
           </div>
           <div class="filter-bar" id="func-filtro-bar">
@@ -899,6 +900,9 @@
             <select id="func-filtro-filial" onchange="renderFuncionarios()"><option value="">Todas as filiais</option></select>
             <select id="func-filtro-situacao" onchange="renderFuncionarios()"><option value="">Todas as situações</option></select>
             <select id="func-filtro-setor" onchange="renderFuncionarios()"><option value="">Todos os setores</option></select>
+          </div>
+          <div class="filter-bar" id="func-oc-filtro-bar" style="display:none">
+            <input type="text" id="func-oc-busca" placeholder="🔍 Buscar ocorrência por funcionário, matrícula, tipo ou motivo..." oninput="renderFuncionarios()"/>
           </div>
           <div id="func-content"></div>
         </div>
