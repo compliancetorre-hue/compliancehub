@@ -384,10 +384,11 @@ function funcHtmlTabela(lista, aba){
     <td><span style="display:inline-block;background:var(--primary);color:#fff;padding:2px 9px;border-radius:20px;font-size:.76rem;font-weight:600">${escapeHtml(funcFilialLabel(f.filial))}</span></td>
     <td><strong style="font-size:.82rem">${escapeHtml(f.cargo)||'—'}</strong></td>
     <td><strong style="font-size:.82rem">${escapeHtml(f.admissao)||'—'}</strong></td>
+    <td style="text-align:center">${(()=>{const n=(f.ocorrencias||[]).length; return n?`<span style="display:inline-block;min-width:22px;background:#f59e0b;color:#fff;padding:2px 9px;border-radius:20px;font-size:.78rem;font-weight:700" title="${n} ocorrência(s) registrada(s)">${n}</span>`:'<span style="color:var(--text-muted);font-size:.82rem">0</span>';})()}</td>
   </tr>`).join('');
   return `<div class="table-wrap"><table>
     <thead><tr>
-      <th>Matrícula</th><th>Nome</th><th>Filial</th><th>Função</th><th>Admissão</th>
+      <th>Matrícula</th><th>Nome</th><th>Filial</th><th>Função</th><th>Admissão</th><th style="text-align:center">Ocorrências</th>
     </tr></thead>
     <tbody>${linhas}</tbody>
   </table></div>
