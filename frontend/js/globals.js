@@ -115,7 +115,7 @@ const PAGE_TITLES = {
   dashboard:'Dashboard', filiais:'Filiais e Setores', 'mapa-risco':'Mapeamento de Risco',
   controles:'Controles Internos', 'planos-acao':'Planos de Ação',
   funcionarios:'Funcionários — Ativos e Desligados',
-  'canal-denuncia':'Canal de Denúncia', 'canal-denuncia-als':'Canal de Denúncia ALS', flowboard:'Flow Board',
+  'canal-denuncia':'Canal de Denúncia', 'canal-denuncia-als':'Canal de Denúncia ALS', flowboard:'Flow Board', chat:'Mensagens',
   'due-diligence':'Due Diligence — KYC & Mídias Negativas',
     'due-diligence2':'Due Diligence 2 – KYC & Mídias Negativas'
 };
@@ -140,6 +140,7 @@ function _gotoImpl(page, el) {
   if(page === 'canal-denuncia-als') renderDenunciasAls();
   if(page === 'funcionarios') renderFuncionarios();
   if(page === 'flowboard') renderFlowboard();
+  if(page === 'chat') renderChat();
   closeMobile();
 }
 
