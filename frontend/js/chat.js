@@ -1,19 +1,21 @@
 // ============================================================
 // chat.js — Chat interno (conversas 1-a-1 e em grupo)
 // ------------------------------------------------------------
-// Front do módulo de mensagens. Fala com a Edge Function "chat"
-// (service_role), que garante que só membros de uma conversa veem
-// as mensagens dela. "Tempo real" por polling leve: só busca
-// enquanto a página de Mensagens está aberta E a aba está visível
-// (economiza invocações da função — fica dentro do nível grátis).
+// A página "Mensagens" lista as conversas (lançador). Ao clicar numa
+// conversa, ela abre numa JANELA FLUTUANTE no canto inferior direito
+// (estilo Messenger), que fica por cima de qualquer tela do sistema e
+// tem um X para fechar. Fala com a Edge Function "chat" (service_role),
+// que garante que só membros veem/escrevem. "Tempo real" por polling
+// leve (3s), só com a aba visível e quando há conversa aberta ou a
+// página de Mensagens está ativa.
 // ============================================================
 
 const CHAT_URL = SUPABASE_URL + '/functions/v1/chat';
 
 let chatConversas = [];      // lista de conversas do usuário
-let chatAtual = null;        // id da conversa aberta
+let chatAtual = null;        // id da conversa aberta na janela flutuante
 let chatMsgs = [];           // mensagens da conversa aberta
-let chatUltimoId = 0;        // maior id de mensagem já visto (na conversa aberta)
+let chatUltimoId = 0;        // maior id de mensagem já visto
 let chatPollTimer = null;    // interval do polling
 let chatTick = 0;            // contador de ciclos (para espaçar o refresh da lista)
 let chatLidas = {};          // { conversaId: ultimoIdLido } — para o "não lido"
@@ -32,7 +34,7 @@ async function chatApi(action, payload = {}) {
   return data;
 }
 
-// Nome amigável de um e-mail (via lista de usuários carregada).
+// ---- helpers de exibição ----
 function chatNomeDe(email) {
   if (!email) return '—';
   const e = String(email).toLowerCase();
@@ -52,8 +54,6 @@ function chatCorDe(email) {
   let h = 0; for (let i = 0; i < e.length; i++) h = (h * 31 + e.charCodeAt(i)) % 360;
   return `hsl(${h},45%,42%)`;
 }
-
-// Título exibido para uma conversa.
 function chatTitulo(c) {
   if (c.tipo === 'grupo') {
     if (c.nome) return c.nome;
@@ -66,11 +66,10 @@ function chatTitulo(c) {
 function chatSubtitulo(c) {
   if (c.tipo === 'grupo') {
     const n = (c.membros || []).length;
-    return `👥 Grupo · ${n} participante${n === 1 ? '' : 's'}`;
+    return `👥 ${n} participante${n === 1 ? '' : 's'}`;
   }
-  return '💬 Conversa direta';
+  return 'Conversa direta';
 }
-
 function _chatHora(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -82,21 +81,24 @@ function _chatHora(iso) {
 }
 
 // ------------------------------------------------------------
-// Render principal da página
+// Página "Mensagens" = lançador (lista de conversas)
 // ------------------------------------------------------------
 async function renderChat() {
   const page = document.getElementById('page-chat');
   if (!page) return;
   chatStartPoll();
+  // Painel direito vira um aviso fixo (as conversas abrem flutuando).
+  const cab = document.getElementById('chat-cab');
+  if (cab) cab.innerHTML = '<div style="font-weight:700;font-size:.95rem">💬 Mensagens</div>';
+  const form = document.getElementById('chat-form');
+  if (form) form.style.display = 'none';
+  const msgs = document.getElementById('chat-msgs');
+  if (msgs) msgs.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);text-align:center;padding:30px">
+    <div style="font-size:2.4rem;margin-bottom:10px">💬</div>
+    <div style="font-weight:700">Clique numa conversa à esquerda</div>
+    <div style="font-size:.85rem;margin-top:4px">Ela abre numa janelinha no canto da tela 👉<br>e continua aberta mesmo se você mudar de módulo.</div></div>`;
   await chatCarregarConversas();
   chatRenderLista();
-  // reabre a conversa que estava aberta, se ainda existir
-  if (chatAtual && chatConversas.some(c => c.id === chatAtual)) {
-    chatRenderCabecalho();
-  } else {
-    chatAtual = null;
-    chatRenderVazio();
-  }
 }
 
 async function chatCarregarConversas() {
@@ -142,59 +144,76 @@ function chatRenderLista() {
   }).join('');
 }
 
-function chatRenderVazio() {
-  const cab = document.getElementById('chat-cab');
-  const msgs = document.getElementById('chat-msgs');
-  const form = document.getElementById('chat-form');
-  if (cab) cab.innerHTML = '';
-  if (form) form.style.display = 'none';
-  if (msgs) msgs.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);text-align:center;padding:30px">
-    <div style="font-size:2.4rem;margin-bottom:10px">💬</div>
-    <div style="font-weight:700">Selecione uma conversa</div>
-    <div style="font-size:.85rem;margin-top:4px">ou crie uma nova para começar a conversar.</div></div>`;
+// ------------------------------------------------------------
+// Janela flutuante (canto inferior direito)
+// ------------------------------------------------------------
+function _chatGarantirFloat() {
+  let f = document.getElementById('chat-float');
+  if (f) return f;
+  f = document.createElement('div');
+  f.id = 'chat-float';
+  f.className = 'chat-float';
+  f.style.display = 'none';
+  f.innerHTML = `
+    <div class="chat-float-head" id="chat-float-head"></div>
+    <div class="chat-float-body" id="chat-float-body"></div>
+    <form class="chat-float-form" id="chat-float-form" onsubmit="chatEnviar(event)">
+      <textarea id="chat-float-input" rows="1" placeholder="Mensagem…  (Enter envia)"></textarea>
+      <button type="submit" title="Enviar" aria-label="Enviar">➤</button>
+    </form>`;
+  document.body.appendChild(f);
+  return f;
 }
 
 async function chatAbrir(id) {
   chatAtual = id;
   chatUltimoId = 0;
   chatMsgs = [];
-  chatRenderCabecalho();
-  const msgs = document.getElementById('chat-msgs');
-  if (msgs) msgs.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:.85rem">Carregando…</div>';
+  const f = _chatGarantirFloat();
+  f.style.display = 'flex';
+  f.classList.remove('chat-float-min');
+  chatFloatHead();
+  const body = document.getElementById('chat-float-body');
+  if (body) body.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:.85rem">Carregando…</div>';
+  chatStartPoll();
   try {
     const d = await chatApi('mensagens', { conversa_id: id });
     chatMsgs = d.mensagens || [];
     if (chatMsgs.length) chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
     chatLidas[id] = chatUltimoId;
-    chatRenderMsgs(true);
+    chatFloatMsgs(true);
   } catch (e) {
-    if (msgs) msgs.innerHTML = `<div style="padding:20px;color:var(--danger);font-size:.85rem">⚠️ ${escapeHtml(e.message)}</div>`;
+    if (body) body.innerHTML = `<div style="padding:18px;color:var(--danger);font-size:.85rem">⚠️ ${escapeHtml(e.message)}</div>`;
   }
   chatRenderLista();
-  const inp = document.getElementById('chat-input');
+  const inp = document.getElementById('chat-float-input');
   if (inp) inp.focus();
 }
 
-function chatRenderCabecalho() {
+function chatFloatHead() {
   const c = chatConversas.find(x => x.id === chatAtual);
-  const cab = document.getElementById('chat-cab');
-  const form = document.getElementById('chat-form');
-  if (!c || !cab) return;
-  if (form) form.style.display = '';
-  const cor = c.tipo === 'grupo' ? '#7c3aed' : chatCorDe((c.membros || []).find(m => m !== _chatMe()));
-  const ini = c.tipo === 'grupo' ? '👥' : chatIniciais((c.membros || []).find(m => m !== _chatMe()));
-  cab.innerHTML = `<div style="flex:none;width:40px;height:40px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${c.tipo === 'grupo' ? '1.1rem' : '.85rem'}">${ini}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chatTitulo(c))}</div>
-      <div style="font-size:.76rem;color:var(--text-muted)">${escapeHtml(chatSubtitulo(c))}</div>
-    </div>`;
+  const head = document.getElementById('chat-float-head');
+  if (!head) return;
+  const titulo = c ? chatTitulo(c) : 'Conversa';
+  const sub = c ? chatSubtitulo(c) : '';
+  const grupo = c && c.tipo === 'grupo';
+  const cor = grupo ? '#7c3aed' : chatCorDe(c ? (c.membros || []).find(m => m !== _chatMe()) : '');
+  const ini = grupo ? '👥' : chatIniciais(c ? (c.membros || []).find(m => m !== _chatMe()) : '');
+  head.innerHTML = `
+    <div style="flex:none;width:32px;height:32px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${grupo ? '1rem' : '.72rem'}">${ini}</div>
+    <div style="flex:1;min-width:0;cursor:pointer" onclick="chatToggleMin()" title="Minimizar / expandir">
+      <div style="font-weight:700;font-size:.9rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(titulo)}</div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(sub)}</div>
+    </div>
+    <button class="chat-float-min" onclick="chatToggleMin()" title="Minimizar" aria-label="Minimizar">—</button>
+    <button class="chat-float-x" onclick="chatFecharFloat()" title="Fechar conversa" aria-label="Fechar">✕</button>`;
 }
 
-function chatRenderMsgs(scroll) {
-  const box = document.getElementById('chat-msgs');
+function chatFloatMsgs(scroll) {
+  const box = document.getElementById('chat-float-body');
   if (!box) return;
   if (!chatMsgs.length) {
-    box.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.85rem">Nenhuma mensagem. Diga olá 👋</div>`;
+    box.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.85rem">Diga olá 👋</div>`;
     return;
   }
   const me = _chatMe();
@@ -204,18 +223,32 @@ function chatRenderMsgs(scroll) {
     const meu = String(m.autor_email).toLowerCase() === me;
     const prev = chatMsgs[i - 1];
     const mostrarAutor = grupo && !meu && (!prev || prev.autor_email !== m.autor_email);
-    return `<div style="display:flex;flex-direction:column;align-items:${meu ? 'flex-end' : 'flex-start'};margin:2px 0">
-      ${mostrarAutor ? `<div style="font-size:.72rem;color:${chatCorDe(m.autor_email)};font-weight:700;margin:4px 6px 1px">${escapeHtml(chatNomeDe(m.autor_email))}</div>` : ''}
-      <div style="max-width:72%;padding:8px 12px;border-radius:14px;${meu ? 'background:var(--primary);color:#fff;border-bottom-right-radius:4px' : 'background:var(--card-alt,#f1f5f9);color:var(--text);border-bottom-left-radius:4px'};font-size:.9rem;line-height:1.35;word-break:break-word;white-space:pre-wrap">${escapeHtml(m.texto)}</div>
-      <div style="font-size:.66rem;color:var(--text-muted);margin:1px 6px 3px">${_chatHora(m.criado_em)}</div>
+    return `<div style="display:flex;flex-direction:column;align-items:${meu ? 'flex-end' : 'flex-start'};margin:1px 0">
+      ${mostrarAutor ? `<div style="font-size:.7rem;color:${chatCorDe(m.autor_email)};font-weight:700;margin:3px 4px 1px">${escapeHtml(chatNomeDe(m.autor_email))}</div>` : ''}
+      <div style="max-width:80%;padding:7px 11px;border-radius:13px;${meu ? 'background:var(--primary);color:#fff;border-bottom-right-radius:4px' : 'background:var(--card-alt,#e9eef5);color:var(--text);border-bottom-left-radius:4px'};font-size:.87rem;line-height:1.35;word-break:break-word;white-space:pre-wrap">${escapeHtml(m.texto)}</div>
+      <div style="font-size:.63rem;color:var(--text-muted);margin:1px 5px 2px">${_chatHora(m.criado_em)}</div>
     </div>`;
   }).join('');
   if (scroll) box.scrollTop = box.scrollHeight;
 }
 
+function chatToggleMin() {
+  const f = document.getElementById('chat-float');
+  if (f) f.classList.toggle('chat-float-min');
+}
+
+function chatFecharFloat() {
+  const f = document.getElementById('chat-float');
+  if (f) f.style.display = 'none';
+  chatAtual = null;
+  chatMsgs = [];
+  chatUltimoId = 0;
+  chatRenderLista();
+}
+
 async function chatEnviar(ev) {
   if (ev && ev.preventDefault) ev.preventDefault();
-  const inp = document.getElementById('chat-input');
+  const inp = document.getElementById('chat-float-input');
   if (!inp || !chatAtual) return;
   const texto = inp.value.trim();
   if (!texto) return;
@@ -227,7 +260,7 @@ async function chatEnviar(ev) {
       chatMsgs.push(d.mensagem);
       chatUltimoId = d.mensagem.id;
       chatLidas[chatAtual] = chatUltimoId;
-      chatRenderMsgs(true);
+      chatFloatMsgs(true);
     }
   } catch (e) {
     inp.value = texto; // devolve o texto para não perder
@@ -236,33 +269,38 @@ async function chatEnviar(ev) {
 }
 
 // ------------------------------------------------------------
-// Polling (só roda na página de Mensagens e com a aba visível)
+// Polling: roda se a aba está visível E (há conversa aberta OU estou
+// na página de Mensagens). Assim a janelinha atualiza mesmo em outro módulo.
 // ------------------------------------------------------------
 function chatStartPoll() {
   if (chatPollTimer) return;
   chatPollTimer = setInterval(chatPoll, 3000);
 }
+function _chatFloatAberta() {
+  const f = document.getElementById('chat-float');
+  return !!(chatAtual && f && f.style.display !== 'none');
+}
 async function chatPoll() {
-  if (currentPage !== 'chat') return;
   if (document.visibilityState && document.visibilityState !== 'visible') return;
+  const floatOpen = _chatFloatAberta();
+  const onPage = currentPage === 'chat';
+  if (!floatOpen && !onPage) return;
   if (chatCarregando) return;
   chatCarregando = true;
   try {
-    // 1) novas mensagens da conversa aberta
-    if (chatAtual) {
+    if (floatOpen) {
       const d = await chatApi('mensagens', { conversa_id: chatAtual, since: chatUltimoId });
       if (d.mensagens && d.mensagens.length) {
-        const box = document.getElementById('chat-msgs');
+        const box = document.getElementById('chat-float-body');
         const perto = box ? (box.scrollHeight - box.scrollTop - box.clientHeight < 80) : true;
         chatMsgs = chatMsgs.concat(d.mensagens);
         chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
         chatLidas[chatAtual] = chatUltimoId;
-        chatRenderMsgs(perto);
+        chatFloatMsgs(perto);
       }
     }
-    // 2) a cada ~4 ciclos (~12s) atualiza a lista (novas conversas / prévia)
     chatTick++;
-    if (chatTick % 4 === 0) {
+    if (onPage && chatTick % 4 === 0) {
       await chatCarregarConversas();
       chatRenderLista();
     }
@@ -342,18 +380,58 @@ async function chatCriarConversa() {
   }
 }
 
-// auto-resize do textarea e Enter para enviar (Shift+Enter = nova linha)
+// ------------------------------------------------------------
+// Estilos da janela flutuante + atalhos de teclado
+// ------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('chat-float-style')) {
+    const st = document.createElement('style');
+    st.id = 'chat-float-style';
+    st.textContent = `
+      .chat-float { position:fixed; right:20px; bottom:0; width:340px; height:460px;
+        max-width:calc(100vw - 24px); max-height:calc(100vh - 80px);
+        background:var(--card,#fff); border:1px solid var(--border,#e2e8f0); border-bottom:none;
+        border-radius:14px 14px 0 0; box-shadow:0 10px 40px rgba(2,6,23,.28);
+        display:flex; flex-direction:column; z-index:5000; overflow:hidden;
+        animation:chatFloatUp .18s ease-out; }
+      @keyframes chatFloatUp { from{ transform:translateY(16px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
+      .chat-float-head { display:flex; align-items:center; gap:9px; padding:9px 10px;
+        background:var(--primary,#0f2d4a); color:#fff; flex:none; }
+      .chat-float-head .chat-float-x, .chat-float-head .chat-float-min {
+        flex:none; width:26px; height:26px; border:none; background:rgba(255,255,255,.14);
+        color:#fff; border-radius:7px; cursor:pointer; font-size:.9rem; line-height:1;
+        display:flex; align-items:center; justify-content:center; }
+      .chat-float-head .chat-float-x:hover { background:#ef4444; }
+      .chat-float-head .chat-float-min:hover { background:rgba(255,255,255,.3); }
+      .chat-float-body { flex:1; overflow-y:auto; padding:12px 12px 8px; display:flex;
+        flex-direction:column; gap:1px; background:var(--bg,#f1f5f9); }
+      .chat-float-form { flex:none; display:flex; gap:7px; align-items:flex-end;
+        padding:8px 10px; border-top:1px solid var(--border,#e2e8f0); background:var(--card,#fff); }
+      .chat-float-form textarea { flex:1; resize:none; max-height:96px; padding:8px 11px;
+        border:1px solid var(--border,#e2e8f0); border-radius:18px; font-family:inherit;
+        font-size:.87rem; line-height:1.35; background:var(--card,#fff); color:var(--text,#0f172a); }
+      .chat-float-form button { flex:none; width:38px; height:38px; border:none; cursor:pointer;
+        border-radius:50%; background:var(--primary,#0f2d4a); color:#fff; font-size:1rem; }
+      .chat-float-form button:hover { filter:brightness(1.1); }
+      /* minimizada: só a barra do topo aparece */
+      .chat-float.chat-float-min { height:auto !important; }
+      .chat-float.chat-float-min .chat-float-body,
+      .chat-float.chat-float-min .chat-float-form { display:none; }
+      @media (max-width:520px){ .chat-float { right:8px; width:calc(100vw - 16px); height:70vh; } }`;
+    document.head.appendChild(st);
+  }
+
+  // Enter envia (Shift+Enter = nova linha) + auto-resize
   document.addEventListener('keydown', (e) => {
-    if (e.target && e.target.id === 'chat-input' && e.key === 'Enter' && !e.shiftKey) {
+    if (e.target && e.target.id === 'chat-float-input' && e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       chatEnviar(e);
     }
   });
   document.addEventListener('input', (e) => {
-    if (e.target && e.target.id === 'chat-input') {
+    if (e.target && e.target.id === 'chat-float-input') {
       e.target.style.height = 'auto';
-      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+      e.target.style.height = Math.min(e.target.scrollHeight, 96) + 'px';
     }
   });
 });
