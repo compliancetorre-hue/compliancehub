@@ -794,6 +794,7 @@ const MODULOS = [
   { id:'flowboard',      label:'Flow Board',          icon:'🗂️', grupo:'Fluxo Visual', restrito:false },
   { id:'due-diligence',  label:'Due Diligence',       icon:'🔍', grupo:'Pesquisa',     restrito:false },
     { id:'due-diligence2', label:'Due Diligence 2', icon:'🔎', grupo:'Pesquisa',  restrito:false },
+  { id:'chat',           label:'Mensagens',           icon:'💬', grupo:'Comunicação', restrito:false },
 ];
 
 // Permissões padrão por perfil (sem personalização)
@@ -801,10 +802,10 @@ const PERM_PADRAO = {
   'Admin':        MODULOS.map(m=>m.id),
   'Compliance':   MODULOS.map(m=>m.id),
   'Auditoria':    MODULOS.filter(m=>!['importar'].includes(m.id)).map(m=>m.id),
-  'RH':           ['dashboard','agenda','filiais'],
+  'RH':           ['dashboard','agenda','filiais','chat'],
   'Diretoria':    MODULOS.filter(m=>!['importar','canal-denuncia','canal-denuncia-als'].includes(m.id)).map(m=>m.id),
-  'Operações':    ['dashboard','agenda','filiais','mapa-risco','planos-acao'],
-  'Visualizador': ['dashboard','filiais'],
+  'Jurídico':     ['dashboard','agenda','filiais','mapa-risco','planos-acao','chat'],
+  'Visualizador': ['dashboard','filiais','chat'],
   // Perfis personalizados (criados pelo admin) herdam Compliance por padrão
 };
 
