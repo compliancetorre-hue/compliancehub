@@ -23,8 +23,13 @@ let chatCarregando = false;  // trava anti-concorrência do polling
 let chatSinceGlobal = 0;     // maior id de mensagem já visto em QUALQUER conversa minha
 let chatPrimed = false;      // já definiu a linha de base (evita abrir no load com msg antiga)
 let chatNaoLidas = 0;        // contador de não-lidas da janela aberta enquanto minimizada
+let chatSouMembro = true;    // sou membro da conversa aberta? (admin pode abrir alheias em leitura)
 
 function _chatMe() { return ((currentUser && currentUser.email) || '').trim().toLowerCase(); }
+function _chatEhAdmin() {
+  const u = currentUser || {};
+  return String(u.email || '').toLowerCase() === 'admin@torre.com.br' || String(u.perfil || '').toLowerCase() === 'admin';
+}
 
 async function chatApi(action, payload = {}) {
   const r = await fetch(CHAT_URL, {
@@ -58,13 +63,20 @@ function chatCorDe(email) {
   return `hsl(${h},45%,42%)`;
 }
 function chatTitulo(c) {
+  const me = _chatMe();
+  const souMembro = (c.membros || []).includes(me);
   if (c.tipo === 'grupo') {
     if (c.nome) return c.nome;
-    const outros = (c.membros || []).filter(m => m !== _chatMe()).map(chatNomeDe);
+    const outros = (c.membros || []).filter(m => m !== me).map(chatNomeDe);
     return outros.join(', ') || 'Grupo';
   }
-  const outro = (c.membros || []).find(m => m !== _chatMe());
-  return chatNomeDe(outro) || 'Conversa';
+  // conversa direta
+  if (souMembro) {
+    const outro = (c.membros || []).find(m => m !== me);
+    return chatNomeDe(outro) || 'Conversa';
+  }
+  // admin vendo DM de terceiros → mostra os dois lados
+  return (c.membros || []).map(chatNomeDe).join(' ↔ ') || 'Conversa';
 }
 function chatSubtitulo(c) {
   if (c.tipo === 'grupo') {
@@ -125,24 +137,33 @@ function chatRenderLista() {
       Nenhuma conversa ainda.<br>Clique em <strong>+ Nova conversa</strong> para começar.</div>`;
     return;
   }
+  const admin = _chatEhAdmin();
   box.innerHTML = chatConversas.map(c => {
+    const me = _chatMe();
     const ativo = c.id === chatAtual;
+    const souMembro = (c.membros || []).includes(me);
     const ult = c.ultima;
-    const prev = ult ? `${ult.autor_email === _chatMe() ? 'Você: ' : ''}${escapeHtml((ult.texto || '').slice(0, 42))}` : '<em>sem mensagens</em>';
+    const prev = ult ? `${ult.autor_email === me ? 'Você: ' : ''}${escapeHtml((ult.texto || '').slice(0, 42))}` : '<em>sem mensagens</em>';
     const hora = ult ? _chatHora(ult.criado_em) : '';
-    const naoLido = ult && ult.autor_email !== _chatMe() && (chatLidas[c.id] || 0) < ult.id && !ativo;
-    const cor = c.tipo === 'grupo' ? '#7c3aed' : chatCorDe((c.membros || []).find(m => m !== _chatMe()));
-    const ini = c.tipo === 'grupo' ? '👥' : chatIniciais((c.membros || []).find(m => m !== _chatMe()));
+    const naoLido = ult && ult.autor_email !== me && (chatLidas[c.id] || 0) < ult.id && !ativo;
+    const outro = (c.membros || []).find(m => m !== me) || (c.membros || [])[0];
+    const cor = c.tipo === 'grupo' ? '#7c3aed' : chatCorDe(outro);
+    const ini = c.tipo === 'grupo' ? '👥' : chatIniciais(outro);
+    const tagAdmin = (admin && !souMembro)
+      ? ' <span style="font-size:.63rem;background:#eef2ff;color:#6366f1;padding:0 5px;border-radius:6px;font-weight:700">não participa</span>' : '';
+    const btnDel = admin
+      ? `<button onclick="event.stopPropagation();chatExcluirConversa(${c.id},event)" title="Excluir conversa" aria-label="Excluir" style="flex:none;border:none;background:transparent;cursor:pointer;color:#ef4444;font-size:1rem;padding:4px;border-radius:6px">🗑️</button>` : '';
     return `<div onclick="chatAbrir(${c.id})" style="display:flex;gap:10px;align-items:center;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);${ativo ? 'background:var(--primary-soft,#eef2ff)' : ''}">
       <div style="flex:none;width:38px;height:38px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${c.tipo === 'grupo' ? '1.1rem' : '.8rem'}">${ini}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;gap:6px">
-          <strong style="font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chatTitulo(c))}</strong>
+          <strong style="font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chatTitulo(c))}${tagAdmin}</strong>
           <span style="font-size:.7rem;color:var(--text-muted);flex:none">${hora}</span>
         </div>
         <div style="font-size:.78rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${naoLido ? 'font-weight:700;color:var(--text)' : ''}">${prev}</div>
       </div>
       ${naoLido ? '<div style="flex:none;width:9px;height:9px;border-radius:50%;background:#22c55e"></div>' : ''}
+      ${btnDel}
     </div>`;
   }).join('');
 }
@@ -160,6 +181,7 @@ function _chatGarantirFloat() {
   f.innerHTML = `
     <div class="chat-float-head" id="chat-float-head"></div>
     <div class="chat-float-body" id="chat-float-body"></div>
+    <div class="chat-float-ro" id="chat-float-ro">👁️ Visualização de administrador — você não participa desta conversa</div>
     <form class="chat-float-form" id="chat-float-form" onsubmit="chatEnviar(event)">
       <textarea id="chat-float-input" rows="1" placeholder="Mensagem…  (Enter envia)"></textarea>
       <button type="submit" title="Enviar" aria-label="Enviar">➤</button>
@@ -173,9 +195,15 @@ async function chatAbrir(id) {
   chatUltimoId = 0;
   chatMsgs = [];
   chatNaoLidas = 0;
+  const conv = chatConversas.find(x => x.id === id);
+  chatSouMembro = conv ? (conv.membros || []).includes(_chatMe()) : true;
   const f = _chatGarantirFloat();
   f.style.display = 'flex';
   f.classList.remove('chat-float-min');
+  // modo leitura (admin vendo conversa alheia): esconde o campo de envio
+  // e mostra o aviso — controlado por classe (não por style inline, que
+  // conflitaria com o CSS de minimizar).
+  f.classList.toggle('chat-float-readonly', !chatSouMembro);
   chatFloatHead();
   const body = document.getElementById('chat-float-body');
   if (body) body.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:.85rem">Carregando…</div>';
@@ -268,7 +296,26 @@ function chatFecharFloat() {
   chatAtual = null;
   chatMsgs = [];
   chatUltimoId = 0;
+  chatSouMembro = true;
   chatRenderLista();
+}
+
+// Excluir conversa (somente admin — o servidor também valida).
+async function chatExcluirConversa(id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const c = chatConversas.find(x => x.id === id);
+  const nome = c ? chatTitulo(c) : ('#' + id);
+  if (!confirm(`Excluir a conversa "${nome}" e TODAS as suas mensagens?\n\nEsta ação é permanente e não pode ser desfeita.`)) return;
+  try {
+    await chatApi('excluir', { conversa_id: id });
+    if (chatAtual === id) chatFecharFloat();
+    chatConversas = chatConversas.filter(x => x.id !== id);
+    chatRenderLista();
+    if (typeof setSaveIndicator === 'function') setSaveIndicator('🗑️ Conversa excluída', 'var(--danger)');
+    if (typeof auditLog === 'function') auditLog('delete', 'chat', `Conversa ${id} excluída pelo administrador`, { conversa: id });
+  } catch (e) {
+    alert('Não foi possível excluir: ' + e.message);
+  }
 }
 
 async function chatEnviar(ev) {
@@ -371,6 +418,25 @@ async function chatPoll() {
       chatSinceGlobal = Math.max(chatSinceGlobal, maxId, ...novas.map(m => m.id));
     } else {
       chatSinceGlobal = Math.max(chatSinceGlobal, maxId);
+    }
+
+    // (a2) janela aberta de conversa ALHEIA (admin em modo leitura): o
+    //      `novidades` não traz essas mensagens (admin não é membro), então
+    //      busca direto. Roda todo ciclo, independente de `novas`.
+    if (chatAtual && !chatSouMembro) {
+      try {
+        const dm = await chatApi('mensagens', { conversa_id: chatAtual, since: chatUltimoId });
+        if (dm.mensagens && dm.mensagens.length) {
+          const box = document.getElementById('chat-float-body');
+          const perto = box ? (box.scrollHeight - box.scrollTop - box.clientHeight < 80) : true;
+          chatMsgs = chatMsgs.concat(dm.mensagens);
+          chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
+          if (_chatMinimizada()) {
+            chatNaoLidas += dm.mensagens.filter(m => String(m.autor_email).toLowerCase() !== me).length;
+            chatFloatHead(); chatFloatMsgs(false);
+          } else { chatFloatMsgs(perto); }
+        }
+      } catch (_) { /* silencioso */ }
     }
 
     // refresh da lista quando estou na página de Mensagens
@@ -488,6 +554,10 @@ document.addEventListener('DOMContentLoaded', () => {
       .chat-float-form button { flex:none; width:38px; height:38px; border:none; cursor:pointer;
         border-radius:50%; background:var(--primary,#0f2d4a); color:#fff; font-size:1rem; }
       .chat-float-form button:hover { filter:brightness(1.1); }
+      .chat-float-ro { display:none; flex:none; padding:7px 12px; font-size:.74rem; text-align:center;
+        background:#fef3c7; color:#92400e; border-top:1px solid var(--border,#e2e8f0); }
+      .chat-float.chat-float-readonly .chat-float-form { display:none; }
+      .chat-float.chat-float-readonly .chat-float-ro { display:block; }
       .chat-float-badge { position:absolute; top:-5px; right:-6px; min-width:18px; height:18px;
         padding:0 4px; border-radius:9px; background:#ef4444; color:#fff; font-size:.68rem;
         font-weight:800; line-height:18px; text-align:center; box-shadow:0 0 0 2px var(--primary,#0f2d4a); }
@@ -496,6 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
       /* minimizada: só a barra do topo aparece */
       .chat-float.chat-float-min { height:auto !important; }
       .chat-float.chat-float-min .chat-float-body,
+      .chat-float.chat-float-min .chat-float-ro,
       .chat-float.chat-float-min .chat-float-form { display:none; }
       @media (max-width:520px){ .chat-float { right:8px; width:calc(100vw - 16px); height:70vh; } }`;
     document.head.appendChild(st);
