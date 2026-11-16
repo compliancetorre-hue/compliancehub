@@ -20,6 +20,9 @@ let chatPollTimer = null;    // interval do polling
 let chatTick = 0;            // contador de ciclos (para espaçar o refresh da lista)
 let chatLidas = {};          // { conversaId: ultimoIdLido } — para o "não lido"
 let chatCarregando = false;  // trava anti-concorrência do polling
+let chatSinceGlobal = 0;     // maior id de mensagem já visto em QUALQUER conversa minha
+let chatPrimed = false;      // já definiu a linha de base (evita abrir no load com msg antiga)
+let chatNaoLidas = 0;        // contador de não-lidas da janela aberta enquanto minimizada
 
 function _chatMe() { return ((currentUser && currentUser.email) || '').trim().toLowerCase(); }
 
@@ -169,6 +172,7 @@ async function chatAbrir(id) {
   chatAtual = id;
   chatUltimoId = 0;
   chatMsgs = [];
+  chatNaoLidas = 0;
   const f = _chatGarantirFloat();
   f.style.display = 'flex';
   f.classList.remove('chat-float-min');
@@ -180,6 +184,7 @@ async function chatAbrir(id) {
     const d = await chatApi('mensagens', { conversa_id: id });
     chatMsgs = d.mensagens || [];
     if (chatMsgs.length) chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
+    chatSinceGlobal = Math.max(chatSinceGlobal, chatUltimoId);
     chatLidas[id] = chatUltimoId;
     chatFloatMsgs(true);
   } catch (e) {
@@ -199,8 +204,13 @@ function chatFloatHead() {
   const grupo = c && c.tipo === 'grupo';
   const cor = grupo ? '#7c3aed' : chatCorDe(c ? (c.membros || []).find(m => m !== _chatMe()) : '');
   const ini = grupo ? '👥' : chatIniciais(c ? (c.membros || []).find(m => m !== _chatMe()) : '');
+  const badge = chatNaoLidas > 0
+    ? `<span class="chat-float-badge" title="${chatNaoLidas} mensagem(ns) nova(s)">${chatNaoLidas > 99 ? '99+' : chatNaoLidas}</span>`
+    : '';
+  const f = document.getElementById('chat-float');
+  if (f) f.classList.toggle('chat-float-alert', chatNaoLidas > 0);
   head.innerHTML = `
-    <div style="flex:none;width:32px;height:32px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${grupo ? '1rem' : '.72rem'}">${ini}</div>
+    <div style="position:relative;flex:none;width:32px;height:32px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${grupo ? '1rem' : '.72rem'}">${ini}${badge}</div>
     <div style="flex:1;min-width:0;cursor:pointer" onclick="chatToggleMin()" title="Minimizar / expandir">
       <div style="font-weight:700;font-size:.9rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(titulo)}</div>
       <div style="font-size:.72rem;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(sub)}</div>
@@ -234,7 +244,22 @@ function chatFloatMsgs(scroll) {
 
 function chatToggleMin() {
   const f = document.getElementById('chat-float');
-  if (f) f.classList.toggle('chat-float-min');
+  if (!f) return;
+  f.classList.toggle('chat-float-min');
+  if (!f.classList.contains('chat-float-min')) {
+    // expandiu → zera o contador e rola pro fim
+    chatNaoLidas = 0;
+    if (chatAtual) chatLidas[chatAtual] = chatUltimoId;
+    chatFloatHead();
+    const box = document.getElementById('chat-float-body');
+    if (box) box.scrollTop = box.scrollHeight;
+  } else {
+    chatFloatHead();
+  }
+}
+function _chatMinimizada() {
+  const f = document.getElementById('chat-float');
+  return !!(f && f.style.display !== 'none' && f.classList.contains('chat-float-min'));
 }
 
 function chatFecharFloat() {
@@ -259,6 +284,7 @@ async function chatEnviar(ev) {
     if (d.mensagem) {
       chatMsgs.push(d.mensagem);
       chatUltimoId = d.mensagem.id;
+      chatSinceGlobal = Math.max(chatSinceGlobal, chatUltimoId);
       chatLidas[chatAtual] = chatUltimoId;
       chatFloatMsgs(true);
     }
@@ -269,38 +295,87 @@ async function chatEnviar(ev) {
 }
 
 // ------------------------------------------------------------
-// Polling: roda se a aba está visível E (há conversa aberta OU estou
-// na página de Mensagens). Assim a janelinha atualiza mesmo em outro módulo.
+// Polling GLOBAL: enquanto a aba estiver visível e o usuário logado,
+// verifica mensagens novas em QUALQUER conversa minha. Isso permite:
+//  - abrir a janela automaticamente quando chega mensagem (nada aberto);
+//  - atualizar a janela aberta em tempo (quase) real;
+//  - contar não-lidas quando a janela está minimizada.
+// Roda a cada 4s. O gating por visibilidade evita gasto com a aba em 2º plano.
 // ------------------------------------------------------------
 function chatStartPoll() {
   if (chatPollTimer) return;
-  chatPollTimer = setInterval(chatPoll, 3000);
+  chatPollTimer = setInterval(chatPoll, 4000);
 }
 function _chatFloatAberta() {
   const f = document.getElementById('chat-float');
   return !!(chatAtual && f && f.style.display !== 'none');
 }
+function _chatMergeMeta(list) {
+  (list || []).forEach(c => {
+    const ex = chatConversas.find(x => x.id === c.id);
+    if (ex) { ex.tipo = c.tipo; ex.nome = c.nome; ex.membros = c.membros; }
+    else chatConversas.push({ id: c.id, tipo: c.tipo, nome: c.nome, membros: c.membros, ultima: null });
+  });
+}
 async function chatPoll() {
   if (document.visibilityState && document.visibilityState !== 'visible') return;
-  const floatOpen = _chatFloatAberta();
-  const onPage = currentPage === 'chat';
-  if (!floatOpen && !onPage) return;
+  if (typeof getAppToken !== 'function' || !getAppToken()) return; // só logado
+  if (!_chatMe()) return;
   if (chatCarregando) return;
   chatCarregando = true;
   try {
-    if (floatOpen) {
-      const d = await chatApi('mensagens', { conversa_id: chatAtual, since: chatUltimoId });
-      if (d.mensagens && d.mensagens.length) {
-        const box = document.getElementById('chat-float-body');
-        const perto = box ? (box.scrollHeight - box.scrollTop - box.clientHeight < 80) : true;
-        chatMsgs = chatMsgs.concat(d.mensagens);
-        chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
-        chatLidas[chatAtual] = chatUltimoId;
-        chatFloatMsgs(perto);
-      }
+    const d = await chatApi('novidades', { since: chatSinceGlobal });
+    if (d.conversas) _chatMergeMeta(d.conversas);
+    const novas = d.novas || [];
+    const maxId = d.maxId || 0;
+    const me = _chatMe();
+
+    // 1ª passada = só define a linha de base (não abre janela por msg antiga)
+    if (!chatPrimed) {
+      chatSinceGlobal = Math.max(chatSinceGlobal, maxId);
+      chatPrimed = true;
+      if (currentPage === 'chat') { await chatCarregarConversas(); chatRenderLista(); }
+      return;
     }
+
+    if (novas.length) {
+      // (a) atualiza a conversa aberta
+      if (chatAtual) {
+        const minhas = novas.filter(m => m.conversa_id === chatAtual && m.id > chatUltimoId);
+        if (minhas.length) {
+          const box = document.getElementById('chat-float-body');
+          const perto = box ? (box.scrollHeight - box.scrollTop - box.clientHeight < 80) : true;
+          chatMsgs = chatMsgs.concat(minhas);
+          chatUltimoId = chatMsgs[chatMsgs.length - 1].id;
+          const recebidas = minhas.filter(m => String(m.autor_email).toLowerCase() !== me).length;
+          if (_chatMinimizada() && recebidas > 0) {
+            chatNaoLidas += recebidas;   // contador na janela minimizada
+            chatFloatHead();
+            chatFloatMsgs(false);
+          } else {
+            chatLidas[chatAtual] = chatUltimoId;
+            chatFloatMsgs(perto);
+          }
+        }
+      }
+
+      // (b) mensagem recebida em conversa que NÃO está aberta → abre sozinha
+      //     (só quando não há nenhuma janela aberta, pra não roubar o foco)
+      const recebidasFora = novas.filter(m =>
+        String(m.autor_email).toLowerCase() !== me && m.conversa_id !== chatAtual);
+      if (recebidasFora.length && !_chatFloatAberta()) {
+        const ultima = recebidasFora[recebidasFora.length - 1];
+        await chatAbrir(ultima.conversa_id);
+      }
+
+      chatSinceGlobal = Math.max(chatSinceGlobal, maxId, ...novas.map(m => m.id));
+    } else {
+      chatSinceGlobal = Math.max(chatSinceGlobal, maxId);
+    }
+
+    // refresh da lista quando estou na página de Mensagens
     chatTick++;
-    if (onPage && chatTick % 4 === 0) {
+    if (currentPage === 'chat' && chatTick % 3 === 0) {
       await chatCarregarConversas();
       chatRenderLista();
     }
@@ -413,6 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
       .chat-float-form button { flex:none; width:38px; height:38px; border:none; cursor:pointer;
         border-radius:50%; background:var(--primary,#0f2d4a); color:#fff; font-size:1rem; }
       .chat-float-form button:hover { filter:brightness(1.1); }
+      .chat-float-badge { position:absolute; top:-5px; right:-6px; min-width:18px; height:18px;
+        padding:0 4px; border-radius:9px; background:#ef4444; color:#fff; font-size:.68rem;
+        font-weight:800; line-height:18px; text-align:center; box-shadow:0 0 0 2px var(--primary,#0f2d4a); }
+      .chat-float.chat-float-min.chat-float-alert { animation:chatBadgePulse 1.6s ease-in-out infinite; }
+      @keyframes chatBadgePulse { 0%,100%{ box-shadow:0 10px 40px rgba(2,6,23,.28) } 50%{ box-shadow:0 0 0 3px rgba(239,68,68,.45), 0 10px 40px rgba(2,6,23,.28) } }
       /* minimizada: só a barra do topo aparece */
       .chat-float.chat-float-min { height:auto !important; }
       .chat-float.chat-float-min .chat-float-body,
@@ -434,4 +514,8 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.style.height = Math.min(e.target.scrollHeight, 96) + 'px';
     }
   });
+
+  // Polling global: começa já; enquanto não há login/token, o ciclo não faz nada.
+  // É isto que permite a janela abrir sozinha quando chega mensagem em qualquer tela.
+  chatStartPoll();
 });
