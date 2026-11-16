@@ -184,6 +184,11 @@
     <a onclick="goto('flowboard',this)" data-page="flowboard">
       <span class="icon">🗂️</span> <span data-editable="menu:flowboard">Flow Board</span>
     </a>
+
+    <div class="nav-label" data-editable="secao:comunicacao">Comunicação</div>
+    <a onclick="goto('chat',this)" data-page="chat">
+      <span class="icon">💬</span> <span data-editable="menu:chat">Mensagens</span>
+    </a>
     <div class="nav-label" data-editable="secao:pesquisa">Pesquisa</div>
     <a onclick="goto('due-diligence',this)" data-page="due-diligence">
       <span class="icon">🔍</span> <span data-editable="menu:due-diligence">Due Diligence</span>
@@ -1193,6 +1198,28 @@
   </div><!-- /content -->
 
   <!-- ══════════════════════════════════════════
+       CHAT / MENSAGENS — fora do #content para ocupar tela toda
+  ══════════════════════════════════════════ -->
+  <div class="page" id="page-chat" style="height:calc(100vh - 60px);overflow:hidden">
+    <div style="display:flex;height:100%;background:var(--bg)">
+      <aside style="width:300px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--card,#fff)">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+          <button class="btn btn-accent btn-sm" style="width:100%" onclick="chatNovaConversa()">+ Nova conversa</button>
+        </div>
+        <div id="chat-conversas" style="flex:1;overflow:auto"></div>
+      </aside>
+      <main style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <header id="chat-cab" style="display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--card,#fff);min-height:40px"></header>
+        <div id="chat-msgs" style="flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:2px;background:var(--bg)"></div>
+        <form id="chat-form" onsubmit="chatEnviar(event)" style="display:none;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--card,#fff);align-items:flex-end">
+          <textarea id="chat-input" rows="1" placeholder="Escreva uma mensagem…  (Enter envia · Shift+Enter quebra linha)" style="flex:1;resize:none;max-height:120px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:.9rem;line-height:1.4"></textarea>
+          <button type="submit" class="btn btn-accent" style="flex:none">Enviar</button>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
        FLOWBOARD — fora do #content para ocupar tela toda
   ══════════════════════════════════════════ -->
   <div class="page" id="page-flowboard" style="flex-direction:column;height:calc(100vh - 60px);overflow:hidden;">
@@ -2162,6 +2189,7 @@
   <script src="js/admin.js"></script>
   <script src="js/search.js"></script>
   <script src="js/funcionarios.js"></script>
+  <script src="js/chat.js"></script>
   <script src="js/app-init.js"></script>
 </body>
 </html>
